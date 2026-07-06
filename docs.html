@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Документация – Код Безопасности</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f4f7fc; color: #1e2a3a; line-height: 1.6; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    header { background: #0a1a2f; color: #fff; padding: 16px 0; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+    .header-inner { display: flex; justify-content: space-between; align-items: center; }
+    .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #fff; }
+    .logo-icon { width: 48px; height: 48px; background: #f0a030; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #0a1a2f; }
+    .logo-text { font-size: 22px; font-weight: 700; }
+    .logo-text span { color: #f0a030; }
+    nav { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #d0dbe8; text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
+    nav a:hover { color: #f0a030; }
+    .btn-back { background: #f0a030; border: none; padding: 8px 20px; border-radius: 30px; color: #0a1a2f; font-weight: 600; text-decoration: none; }
+    .btn-back:hover { background: #d48d24; }
+    .section { padding: 40px 0; }
+    .section-title { font-size: 34px; font-weight: 700; margin-bottom: 20px; color: #0a1a2f; border-bottom: 3px solid #f0a030; display: inline-block; }
+    .toc { background: #fff; border-radius: 20px; padding: 30px; margin-bottom: 40px; box-shadow: 0 6px 24px rgba(10,26,47,0.08); }
+    .toc h2 { font-size: 24px; margin-bottom: 16px; }
+    .toc ul { list-style: none; padding-left: 0; }
+    .toc li { margin-bottom: 8px; }
+    .toc a { color: #0a1a2f; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+    .toc a:hover { color: #f0a030; }
+    .card-doc { background: #fff; border-radius: 20px; padding: 30px; margin-bottom: 30px; box-shadow: 0 6px 24px rgba(10,26,47,0.08); }
+    .card-doc h3 { font-size: 24px; margin-bottom: 16px; color: #0a1a2f; }
+    .card-doc p, .card-doc li { font-size: 16px; color: #3a4a5e; }
+    .card-doc code { background: #e0e7f0; padding: 2px 8px; border-radius: 6px; font-family: monospace; font-size: 15px; }
+    .card-doc pre { background: #1e2a3a; color: #f4f7fc; padding: 20px; border-radius: 12px; overflow-x: auto; margin: 12px 0; }
+    .card-doc table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    .card-doc th, .card-doc td { border: 1px solid #cdd9e6; padding: 12px; text-align: left; }
+    .card-doc th { background: #f0a030; color: #0a1a2f; font-weight: 600; }
+    footer { background: #07121f; color: #8aa0b8; padding: 40px 0 24px; margin-top: 60px; }
+    .footer-bottom { text-align: center; font-size: 14px; }
+    @media (max-width: 768px) {
+      nav { gap: 12px; }
+      .header-inner { flex-wrap: wrap; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-inner">
+      <a href="/" class="logo">
+        <div class="logo-icon">Б</div>
+        <div class="logo-text">Код <span>Безопасности</span></div>
+      </a>
+      <nav>
+        <a href="/">На главную</a>
+        <a href="/#services">Услуги</a>
+        <a href="/#contact">Контакты</a>
+        <a href="docs.html" class="btn-back">Документация</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="section">
+      <h1 class="section-title">📚 Документация</h1>
+      <p style="font-size: 18px; color: #3a4a5e; max-width: 800px; margin-top: 16px;">
+        Полное руководство по использованию сервиса «Код Безопасности» для аудита мессенджеров, интеграции платежей и взаимодействия с Firebase.
+      </p>
+    </section>
+
+    <div class="toc">
+      <h2>Содержание</h2>
+      <ul>
+        <li><a href="#intro">1. Введение</a></li>
+        <li><a href="#services">2. Услуги и цены</a></li>
+        <li><a href="#payment">3. Оплата через Lava</a></li>
+        <li><a href="#auth">4. Аутентификация пользователей</a></li>
+        <li><a href="#firebase">5. Работа с Firebase</a></li>
+        <li><a href="#audit-form">6. Анкета аудита</a></li>
+        <li><a href="#api">7. API и Webhook</a></li>
+        <li><a href="#faq">8. Часто задаваемые вопросы</a></li>
+        <li><a href="#contacts">9. Контакты и поддержка</a></li>
+      </ul>
+    </div>
+
+    <div id="intro" class="card-doc">
+      <h3>1. Введение</h3>
+      <p>«Код Безопасности» – российский сервис для комплексного аудита безопасности мессенджеров. Мы проверяем уязвимости, шифрование, соответствие законодательству (152‑ФЗ, GDPR) и функциональную стабильность. После проверки вы получаете официальное заключение в формате PDF с усиленной ЭЦП.</p>
+      <p>Сервис работает по модели <strong>«сначала оплата, потом анкета»</strong>. Все заявки сохраняются в Firebase, файлы исходного кода загружаются в облачное хранилище.</p>
+    </div>
+
+    <div id="services" class="card-doc">
+      <h3>2. Услуги и цены</h3>
+      <table>
+        <tr><th>Услуга</th><th>Описание</th><th>Цена</th></tr>
+        <tr><td>🛡️ Общая проверка безопасности</td><td>Комплексный аудит уязвимостей, шифрования, сетевых экранов и журналов доступа</td><td>от 200 ₽</td></tr>
+        <tr><td>⚖️ Юридическая экспертиза</td><td>Проверка на соответствие 152‑ФЗ, GDPR, HIPAA и другим нормам</td><td>от 400 ₽</td></tr>
+        <tr><td>📄 Электронная справка</td><td>PDF-отчёт с ЭЦП + дубликат заказным письмом</td><td>от 600 ₽</td></tr>
+        <tr><td>⚙️ Проверка функционала</td><td>Нагрузочные тесты, тестирование интерфейса и сценариев</td><td>от 100 ₽</td></tr>
+      </table>
+    </div>
+
+    <div id="payment" class="card-doc">
+      <h3>3. Оплата через Lava</h3>
+      <p>При нажатии «Оплатить через Lava» генерируется прямая ссылка с вашим Profile ID и суммой.</p>
+      <pre><code>https://lava.ru/pay/1f20c4a6-ff03-4628-86c2-7dab1ad09db5?amount=200&comment=Проверка+безопасности&return_url=https://codbez.zapto.org/success.html</code></pre>
+      <p><strong>Параметры:</strong></p>
+      <ul>
+        <li><code>shop_id</code> – ваш публичный идентификатор магазина</li>
+        <li><code>amount</code> – сумма в рублях</li>
+        <li><code>comment</code> – описание платежа</li>
+        <li><code>return_url</code> – страница возврата после оплаты (у нас <code>/success.html</code>)</li>
+      </ul>
+      <p>После успешной оплаты Lava перенаправляет пользователя на <code>success.html</code>, где статус проверяется через API Lava. При положительном ответе в localStorage устанавливается флаг <code>payment_verified=true</code>, и после возврата на главную страницу автоматически открывается анкета.</p>
+    </div>
+
+    <div id="auth" class="card-doc">
+      <h3>4. Аутентификация пользователей</h3>
+      <p>На сайте реализована регистрация и вход через Firebase Auth. Поддерживаются:</p>
+      <ul>
+        <li>Email/пароль</li>
+        <li>Вход через Google (OAuth)</li>
+      </ul>
+      <p>После входа в шапке отображается аватар и имя пользователя. Все заявки привязываются к UID пользователя (если он авторизован).</p>
+    </div>
+
+    <div id="firebase" class="card-doc">
+      <h3>5. Работа с Firebase</h3>
+      <p>Основные коллекции Firestore:</p>
+      <ul>
+        <li><code>consultations</code> – заявки на консультацию</li>
+        <li><code>audit_orders</code> – заказы на аудит</li>
+      </ul>
+      <p>Файлы исходного кода загружаются в Firebase Storage в папку <code>audit_sources/{userId}/{filename}</code>.</p>
+      <pre><code>// Инициализация Firebase
+const app = initializeApp({
+  apiKey: "AIzaSyCjadRD1TAix0IsjaxYI-76P9mDpKmQ34Q",
+  authDomain: "quickchat-f5012.firebaseapp.com",
+  projectId: "quickchat-f5012",
+  storageBucket: "quickchat-f5012.appspot.com",
+  messagingSenderId: "80730246249",
+  appId: "1:80730246249:web:b3b444c63aca7a5c7466f8"
+});</code></pre>
+    </div>
+
+    <div id="audit-form" class="card-doc">
+      <h3>6. Анкета аудита</h3>
+      <p>После подтверждения оплаты открывается модальное окно с полями:</p>
+      <ul>
+        <li><strong>Ваше имя / название организации</strong></li>
+        <li><strong>Файл с исходным кодом</strong> (zip, rar, 7z)</li>
+        <li><strong>Email или способ для ответа</strong></li>
+      </ul>
+      <p>После отправки данные сохраняются в Firestore, файл загружается в Storage.</p>
+    </div>
+
+    <div id="api" class="card-doc">
+      <h3>7. API и Webhook</h3>
+      <p>Пример обработчика Webhook на Node.js:</p>
+      <pre><code>const crypto = require('crypto');
+app.post('/lava-webhook', (req, res) => {
+  const signature = req.headers['x-lava-signature'];
+  const hash = crypto.createHmac('sha256', 'доп.ключ')
+                     .update(JSON.stringify(req.body))
+                     .digest('hex');
+  if (hash === signature) {
+    // платёж подтверждён
+  }
+  res.sendStatus(200);
+});</code></pre>
+    </div>
+
+    <div id="faq" class="card-doc">
+      <h3>8. Часто задаваемые вопросы</h3>
+      <p><strong>В: Что делать, если после оплаты не открывается анкета?</strong><br>
+      О: Проверьте, что вы попали на страницу <code>success.html</code>, и в localStorage есть ключ <code>payment_verified</code>.</p>
+      <p><strong>В: Можно ли заказать аудит без регистрации?</strong><br>
+      О: Да, регистрация необязательна.</p>
+      <p><strong>В: Как долго выполняется проверка?</strong><br>
+      О: Стандартный срок — от 3 до 7 рабочих дней.</p>
+    </div>
+
+    <div id="contacts" class="card-doc">
+      <h3>9. Контакты и поддержка</h3>
+      <ul>
+        <li>Email: <a href="mailto:nexlinkoffic8@gmail.com">nexlinkoffic8@gmail.com</a></li>
+        <li>Телефон: <a href="tel:+79894566138">+7 (989) 456 61 38</a></li>
+        <li>Telegram: @nexlink_official</li>
+        <li>Сайт: <a href="https://codbez.zapto.org">codbez.zapto.org</a></li>
+      </ul>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container footer-bottom">
+      © 2026 «Код Безопасности» – документация версия 1.0
+    </div>
+  </footer>
+
+  <script>
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  </script>
+</body>
+</html>
