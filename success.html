@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Подтверждение оплаты</title>
+  <meta http-equiv="refresh" content="2;url=/" />
   <style>
     body { font-family: Inter, sans-serif; text-align: center; padding: 40px; background: #f4f7fc; }
     .spinner { border: 4px solid #e0e7f0; border-top: 4px solid #f0a030; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
@@ -18,21 +19,17 @@
     const status = params.get('status');
 
     if (status === 'paid' || status === 'success') {
-      // Если статус уже в URL, сразу подтверждаем
       localStorage.setItem('payment_verified', 'true');
       localStorage.setItem('paid_invoice', invoiceId || '');
-      redirectToMain();
+      redirect();
     } else if (invoiceId) {
-      // Проверяем статус через API Lava (публичный метод)
       checkInvoiceStatus(invoiceId);
     } else {
-      // Нет данных – просто возвращаемся
-      redirectToMain();
+      redirect();
     }
 
     async function checkInvoiceStatus(invoiceId) {
       try {
-        // Публичный API Lava: GET https://api.lava.ru/invoice/{id}
         const response = await fetch(`https://api.lava.ru/invoice/${invoiceId}`, {
           headers: { 'Authorization': 'Bearer 1f20c4a6-ff03-4628-86c2-7dab1ad09db5' }
         });
@@ -40,21 +37,17 @@
         if (data.status === 'paid' || data.status === 'success') {
           localStorage.setItem('payment_verified', 'true');
           localStorage.setItem('paid_invoice', invoiceId);
-        } else {
-          localStorage.setItem('payment_verified', 'false');
         }
       } catch (e) {
-        // При ошибке всё равно пробуем (на случай, если API не доступен)
         localStorage.setItem('payment_verified', 'true');
       }
-      redirectToMain();
+      redirect();
     }
 
-    function redirectToMain() {
-      // Перенаправляем на главную страницу
+    function redirect() {
       setTimeout(() => {
         window.location.href = '/';
-      }, 1000);
+      }, 1500);
     }
   </script>
 </body>
