@@ -1124,7 +1124,8 @@
     .camera-view video#cameraPreview {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
+      background: #000;
     }
 
     .camera-placeholder {
@@ -1144,13 +1145,64 @@
       bottom: 0;
       left: 0;
       right: 0;
-      padding: 20px 16px calc(20px + var(--safe-bottom));
+      padding: 20px 14px calc(20px + var(--safe-bottom));
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+      gap: 8px;
+      background: linear-gradient(to top, rgba(0,0,0,0.84), transparent);
       z-index: 20;
     }
+
+    .camera-extra-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.12);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 20px;
+      backdrop-filter: blur(8px);
+    }
+    .camera-extra-btn:active, .ctrl-btn:active { transform: scale(.92); }
+
+    .camera-top-controls {
+      position: absolute;
+      top: calc(var(--safe-top) + 12px);
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 25;
+    }
+    .camera-top-controls .camera-extra-btn {
+      width: 42px;
+      height: 42px;
+      background: rgba(0,0,0,.38);
+    }
+
+    .camera-enable-btn {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      z-index: 26;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+      cursor: pointer;
+    }
+    .camera-enable-btn:active { transform: translate(-50%,-50%) scale(.96); }
+    .camera-enable-btn.hidden { display: none; }
 
     .ctrl-btn {
       width: 48px;
@@ -1296,11 +1348,45 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(0,0,0,0.7);
+      background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,.18));
       text-align: center;
       font-size: 11px;
-      padding: 4px;
+      padding: 14px 4px 6px;
+      pointer-events: none;
     }
+    .cover-edit-btn {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 8px;
+      border: 0;
+      border-radius: 9px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,.62);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      z-index: 3;
+      backdrop-filter: blur(8px);
+    }
+    .cover-edit-btn:active { transform: scale(.97); }
+
+    .feed-end-message {
+      min-height: 48vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      scroll-snap-align: start;
+      color: rgba(255,255,255,.72);
+      background: #000;
+      text-align: center;
+      padding: 24px;
+    }
+    .feed-end-message .end-title { color:#fff; font-size:18px; font-weight:850; }
+    .feed-end-message .end-subtitle { color:rgba(255,255,255,.5); font-size:13px; }
 
     .publish-fields {
       flex: 1;
@@ -1744,6 +1830,92 @@
     .comment-context-menu button.danger { color:#ff7a95; }
     .comment-sticker { width:74px; height:74px; display:block; margin-top:6px; }
     .comment-textual { white-space:pre-wrap; word-break:break-word; }
+
+    .moderation-note {
+      margin:0 14px 14px; padding:11px 12px; border-radius:11px;
+      border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.035);
+      color:#9b9ba2; font-size:11px; line-height:1.45;
+    }
+    .moderation-note strong { color:#f4f4f6; }
+    body.light-theme .moderation-note { background:#f5f5f7; border-color:#e3e3e8; color:#666872; }
+    body.light-theme .moderation-note strong { color:#1b1b1f; }
+
+    /* ========== DONATIONS / GOLD COMMENT ========== */
+    .donate-btn .icon-btn {
+      color:#ffd76a;
+      background:rgba(255,204,74,.12);
+      border:1px solid rgba(255,215,106,.26);
+      box-shadow:0 7px 22px rgba(255,196,64,.12);
+    }
+    .donate-btn .count { color:#ffd76a; }
+    .donation-comment-cta {
+      width:100%;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      border:1px solid rgba(255,215,106,.22);
+      background:linear-gradient(135deg,rgba(255,196,64,.12),rgba(255,255,255,.04));
+      color:#ffd76a; border-radius:12px; padding:10px 12px;
+      font-weight:750; cursor:pointer; margin:0 0 10px;
+    }
+    .donation-comment-cta:active { transform:scale(.985); }
+    .donation-comments-section { margin-bottom:10px; }
+    .donation-section-title {
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:8px 0 7px; color:#ffd76a; font-size:12px; font-weight:800;
+      text-transform:uppercase; letter-spacing:.04em;
+    }
+    .donation-comment {
+      display:flex; gap:10px; padding:10px 11px; margin-bottom:7px;
+      border:1px solid rgba(255,255,255,.07); border-radius:13px;
+      background:rgba(255,255,255,.035);
+    }
+    .donation-comment.gold {
+      position:relative; overflow:hidden;
+      border-color:rgba(255,215,106,.58);
+      background:linear-gradient(135deg,rgba(255,214,102,.20),rgba(255,189,58,.07) 55%,rgba(255,255,255,.025));
+      box-shadow:0 10px 28px rgba(255,190,58,.15), inset 0 1px 0 rgba(255,255,255,.12);
+    }
+    .donation-comment.gold::before {
+      content:""; position:absolute; inset:0 auto 0 0; width:3px;
+      background:linear-gradient(#fff2a8,#f5b62e,#fff2a8);
+    }
+    .donation-avatar {
+      width:36px; height:36px; border-radius:50%; flex:0 0 36px; overflow:hidden;
+      background:#252525; border:1px solid rgba(255,255,255,.08);
+    }
+    .donation-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .donation-main { flex:1; min-width:0; }
+    .donation-name-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+    .donation-name { font-size:13px; font-weight:800; color:#fff; }
+    .donation-amount {
+      font-size:12px; font-weight:850; color:#ffd76a;
+      padding:3px 7px; border-radius:999px; background:rgba(255,215,106,.11);
+      border:1px solid rgba(255,215,106,.17);
+    }
+    .donation-badge {
+      display:inline-flex; align-items:center; gap:4px; padding:3px 7px; border-radius:999px;
+      font-size:10px; font-weight:850; color:#6b4300; background:linear-gradient(180deg,#ffeaa1,#f5bb3c);
+      box-shadow:0 3px 10px rgba(245,187,60,.2);
+    }
+    .donation-message { white-space:pre-wrap; word-break:break-word; color:#f5f5f6; font-size:13px; line-height:1.35; margin-top:5px; }
+    .donation-system-text { color:#fff; font-size:13px; line-height:1.35; margin-top:4px; }
+    .donation-meta { margin-top:5px; color:#8c8c93; font-size:11px; }
+    .donation-pin { color:#ffd76a; font-size:11px; font-weight:800; }
+    .gold-comment-note {
+      display:flex; gap:10px; align-items:flex-start; padding:12px; margin-top:10px; border-radius:13px;
+      border:1px solid rgba(255,215,106,.18); background:rgba(255,215,106,.06); color:#dcdce1;
+      font-size:12px; line-height:1.4;
+    }
+    .gold-comment-note strong { color:#ffd76a; }
+    .donation-settings-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .donation-settings-actions .u-btn { white-space:nowrap; }
+    .donation-status { font-size:12px; font-weight:750; }
+    .donation-status.connected { color:#76e3a4; }
+    .donation-status.disconnected { color:#ffcc75; }
+    body.light-theme .donation-comment { background:rgba(20,20,30,.035); border-color:#e6e6eb; }
+    body.light-theme .donation-comment.gold { border-color:#e0b84e; background:linear-gradient(135deg,rgba(255,210,92,.22),rgba(255,255,255,.88)); }
+    body.light-theme .donation-name { color:#1a1a1d; }
+    body.light-theme .donation-message, body.light-theme .donation-system-text { color:#25252a; }
+    body.light-theme .donation-meta { color:#74747c; }
 
     /* Utility */
     .hidden { display: none !important; }
@@ -2260,6 +2432,42 @@
     }
     .password-reset-sheet { width: min(100%, 430px); }
     .recovery-field { margin-top: 12px; text-align: left; }
+    .recovery-step { display:none; }
+    .recovery-step.active { display:block; animation: recoveryStepIn .22s ease; }
+    @keyframes recoveryStepIn { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
+    .recovery-progress {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:0 0 18px;
+    }
+    .recovery-progress-item {
+      height:5px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden;
+    }
+    .recovery-progress-item.active { background:linear-gradient(90deg,#25f4ee,#fe2c55); box-shadow:0 0 12px rgba(254,44,85,.18); }
+    .recovery-step-badge {
+      display:inline-flex; align-items:center; gap:7px; margin-bottom:10px; padding:7px 10px;
+      border-radius:999px; background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.07);
+      color:#9f9fa7; font-size:11px; font-weight:750;
+    }
+    .recovery-code-input {
+      width:100%; text-align:center; letter-spacing:.42em; text-indent:.42em; font-size:25px !important;
+      font-weight:800; padding-top:14px !important; padding-bottom:14px !important;
+    }
+    .recovery-email-chip {
+      margin-top:10px; padding:10px 12px; border-radius:12px; text-align:center;
+      color:#fff; font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      background:linear-gradient(135deg,rgba(37,244,238,.08),rgba(254,44,85,.10));
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .recovery-secondary {
+      border:0; background:transparent; color:#8e8e96; font-size:12px; font-weight:650; cursor:pointer; padding:7px 4px;
+    }
+    .recovery-secondary:hover { color:#fff; }
+    .recovery-hint { color:#77777f; font-size:11px; line-height:1.5; margin-top:10px; text-align:center; min-height:17px; }
+    .recovery-actions-row { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px; }
+    .recovery-actions-row.single { grid-template-columns:1fr; }
+    .recovery-back-btn {
+      color:#c9c9cd; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+    }
+    .recovery-title-note { margin-top:2px; color:#6f6f76; font-size:11px; line-height:1.5; }
     .auth-submit:active { transform: scale(.985); }
     .auth-submit:disabled { opacity: .6; box-shadow: none; }
 
@@ -2467,6 +2675,56 @@
       .setting-row { padding:13px 12px; }
       .setting-control select, .setting-control input[type=text], .setting-control input[type=time], .setting-control input[type=number] { min-width:110px; max-width:125px; }
     }
+
+    /* ========== CHATS / ACTIVITY ========== */
+    .chat-sheet { width:min(100%, 620px); height:min(86vh,760px); padding:0; display:flex; flex-direction:column; overflow:hidden; }
+    .chat-head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.08); background:var(--surface); flex:0 0 auto; }
+    .chat-head .back-btn,.chat-head .close-btn { width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer; }
+    .chat-head-avatar { width:38px;height:38px;border-radius:50%;overflow:hidden;background:#2a2a2d;flex:0 0 auto; }
+    .chat-head-avatar img { width:100%;height:100%;object-fit:cover;display:block; }
+    .chat-head-info { min-width:0; flex:1; }
+    .chat-head-name { font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-head-status { font-size:11px; color:var(--text-muted); margin-top:2px; }
+    .chat-body { flex:1; min-height:0; overflow:auto; padding:16px 14px; background:linear-gradient(180deg,#0e0e10 0%,#09090a 100%); display:flex; flex-direction:column; gap:7px; }
+    .chat-empty { margin:auto; max-width:280px; text-align:center; color:var(--text-muted); line-height:1.45; }
+    .chat-empty .icon { color:#8d8d94; margin-bottom:10px; }
+    .chat-message { max-width:min(78%, 440px); padding:10px 12px; border-radius:16px; background:#1b1b1e; color:#fff; align-self:flex-start; box-shadow:0 4px 16px rgba(0,0,0,.12); word-break:break-word; }
+    .chat-message.mine { align-self:flex-end; background:var(--accent); }
+    .chat-message-body { white-space:pre-wrap; font-size:14px; line-height:1.38; }
+    .chat-message-meta { display:flex; justify-content:flex-end; gap:5px; margin-top:4px; font-size:10px; opacity:.66; }
+    .chat-compose { display:flex; gap:8px; padding:10px; border-top:1px solid rgba(255,255,255,.08); background:var(--surface); flex:0 0 auto; }
+    .chat-input { flex:1; min-width:0; border:1px solid rgba(255,255,255,.09); background:var(--surface-2); color:#fff; border-radius:18px; padding:10px 13px; outline:none; font:inherit; resize:none; min-height:40px; max-height:110px; }
+    .chat-send { width:42px;height:42px;border:0;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto; }
+    .chat-send:disabled { opacity:.45; cursor:not-allowed; }
+    .chat-list-item { display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer; }
+    .chat-list-item:hover { background:rgba(255,255,255,.035); }
+    .chat-list-avatar { width:52px;height:52px;border-radius:50%;overflow:hidden;background:#2a2a2d;flex:0 0 auto;position:relative; }
+    .chat-list-avatar img { width:100%;height:100%;object-fit:cover;display:block; }
+    .chat-unread { position:absolute;right:-1px;bottom:-1px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;border:2px solid var(--bg);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px; }
+    .chat-list-main { min-width:0; flex:1; }
+    .chat-list-top { display:flex; align-items:center; gap:8px; }
+    .chat-list-name { flex:1; min-width:0; font-size:14px; font-weight:780; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-list-time { font-size:10px;color:var(--text-muted);flex:0 0 auto; }
+    .chat-list-preview { font-size:12px;color:var(--text-muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .activity-item { display:flex;align-items:flex-start;gap:11px;padding:13px 15px;border-bottom:1px solid rgba(255,255,255,.05); }
+    .activity-icon { width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);color:#fff;flex:0 0 auto; }
+    .activity-main { min-width:0; flex:1; }
+    .activity-text { font-size:13px;line-height:1.35; }
+    .activity-time { font-size:11px;color:var(--text-muted);margin-top:3px; }
+    .inbox-tabs { overflow-x:auto; }
+    .inbox-tabs .itab { min-width:33.33%; }
+    body.light-theme .chat-head, body.light-theme .chat-compose { background:#fff; border-color:#dedee4; }
+    body.light-theme .chat-body { background:linear-gradient(180deg,#f5f5f7 0%,#ececf0 100%); }
+    body.light-theme .chat-message:not(.mine) { background:#fff; color:#161616; }
+    body.light-theme .chat-input { background:#f3f3f6; color:#161616; border-color:#dcdce2; }
+    body.light-theme .chat-list-item, body.light-theme .activity-item { border-color:#e7e7eb; }
+    @media (max-width:859px){ .chat-sheet{width:100%;height:100%;max-height:none;border-radius:0;} .chat-body{padding-bottom:18px;} }
+
+  
+    .bottom-nav .btn[data-screen="inbox"] { position:relative; }
+    .bottom-nav .btn[data-screen="inbox"].has-unread::after { content:""; position:absolute; top:4px; right:19px; width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--bg); }
+    body.light-theme .bottom-nav .btn[data-screen="inbox"].has-unread::after { box-shadow:0 0 0 2px #fff; }
+
   </style>
 </head>
 <body>
@@ -2505,6 +2763,7 @@
       <div class="inbox-header">Входящие</div>
       <div class="inbox-tabs">
         <div class="itab active" data-itab="notifs">Уведомления</div>
+        <div class="itab" data-itab="activity">Активность</div>
         <div class="itab" data-itab="chats">Чаты</div>
       </div>
       <div class="inbox-list" id="inboxList"></div>
@@ -2552,13 +2811,19 @@
           <div>Камера недоступна<br>или разрешите доступ</div>
           <div style="margin-top:12px;font-size:13px;">Можно выбрать из галереи</div>
         </div>
+        <div class="camera-top-controls">
+          <button class="camera-extra-btn" id="zoomOutBtn" type="button" title="Уменьшить" aria-label="Уменьшить">−</button>
+          <button class="camera-extra-btn" id="zoomInBtn" type="button" title="Приблизить" aria-label="Приблизить">+</button>
+        </div>
+        <button class="camera-enable-btn" id="enableCameraBtn" type="button">Включить камеру</button>
         <div class="record-timer" id="recordTimer">00:00</div>
         <button class="next-btn" id="nextBtn">Следующий →</button>
       </div>
       <div class="record-controls">
         <button class="ctrl-btn" id="galleryBtn" title="Галерея" aria-label="Галерея"><span data-icon="image"></span></button>
+        <button class="ctrl-btn" id="enableCameraBottomBtn" title="Включить камеру" aria-label="Включить камеру"><span data-icon="camera"></span></button>
         <button class="record-btn" id="recordBtn" type="button" aria-label="Начать запись" title="Начать запись"><div class="inner"></div></button>
-        <button class="ctrl-btn" id="flipBtn" title="Перевернуть камеру" aria-label="Перевернуть камеру"><span data-icon="refresh"></span></button>
+        <button class="ctrl-btn" id="flipBtn" title="Сменить камеру" aria-label="Сменить камеру"><span data-icon="refresh"></span></button>
       </div>
       <input type="file" id="galleryInput" accept="video/*,image/*" style="display:none" />
     </div>
@@ -2574,6 +2839,7 @@
         <div class="cover-section">
           <div class="cover-preview" id="coverPreview">
             <div class="cover-label">Обложка</div>
+            <button class="cover-edit-btn" id="coverEditBtn" type="button">Изменить обложку</button>
           </div>
           <div class="publish-fields">
             <div class="field">
@@ -2587,6 +2853,7 @@
           </div>
         </div>
         <button class="publish-btn" id="publishBtn">Выложить</button>
+        <input type="file" id="coverInput" accept="image/*" style="display:none" />
       </div>
     </div>
 
@@ -2651,6 +2918,7 @@
       <div class="modal-sheet">
         <div class="handle"></div>
         <h3>Комментарии</h3>
+        <button class="donation-comment-cta" id="commentDonateBtn" type="button" style="display:none;"></button>
         <div class="comments-list" id="commentsList"></div>
         <div class="comment-tools">
           <button class="comment-sticker-btn" id="commentStickerBtn" type="button" aria-label="Стикеры"><span data-icon="sticker"></span></button>
@@ -2666,6 +2934,22 @@
           </div>
           <div class="sticker-grid" id="stickerGrid"></div>
           <input type="file" id="stickerUploadInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none" />
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="chatModal">
+      <div class="modal-sheet chat-sheet">
+        <div class="chat-head">
+          <button class="back-btn" id="chatBackBtn" type="button" aria-label="Назад"><span data-icon="back"></span></button>
+          <div class="chat-head-avatar"><img id="chatHeadAvatar" src="" alt=""></div>
+          <div class="chat-head-info"><div class="chat-head-name" id="chatHeadName">Чат</div><div class="chat-head-status" id="chatHeadStatus">Личное сообщение</div></div>
+          <button class="close-btn" id="chatCloseBtn" type="button" aria-label="Закрыть"><span data-icon="close"></span></button>
+        </div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chat-compose">
+          <textarea class="chat-input" id="chatInput" rows="1" maxlength="2000" placeholder="Напишите сообщение…"></textarea>
+          <button class="chat-send" id="chatSendBtn" type="button" aria-label="Отправить"><span data-icon="send"></span></button>
         </div>
       </div>
     </div>
@@ -2833,21 +3117,65 @@
     <div class="modal-overlay auth-centered" id="passwordResetModal">
       <div class="modal-sheet email-confirm-sheet password-reset-sheet">
         <div class="email-confirm-icon"><span data-icon="lock"></span></div>
-        <h3>Новый пароль</h3>
-        <div class="email-confirm-text">Введите новый пароль для вашего аккаунта.</div>
-        <div class="auth-field recovery-field">
-          <label for="newPassword">Новый пароль</label>
-          <input id="newPassword" type="password" autocomplete="new-password" placeholder="Минимум 6 символов" minlength="6" />
+        <h3 id="passwordRecoveryTitle">Восстановление доступа</h3>
+        <div class="email-confirm-text" id="passwordRecoverySubtitle">Сначала укажите почту, затем введите код из письма и задайте новый пароль.</div>
+        <div class="recovery-progress" aria-hidden="true">
+          <div class="recovery-progress-item active" data-recovery-progress="1"></div>
+          <div class="recovery-progress-item" data-recovery-progress="2"></div>
+          <div class="recovery-progress-item" data-recovery-progress="3"></div>
         </div>
-        <div class="auth-field recovery-field">
-          <label for="newPasswordRepeat">Повторите пароль</label>
-          <input id="newPasswordRepeat" type="password" autocomplete="new-password" placeholder="Повторите пароль" minlength="6" />
-        </div>
-        <div class="auth-error" id="passwordResetError" role="alert"></div>
-        <div class="email-confirm-actions">
-          <button class="email-resend-btn" id="passwordResetBtn" type="button">Сохранить новый пароль</button>
-          <button class="email-cancel-btn" id="passwordResetCancelBtn" type="button">Отмена</button>
-        </div>
+
+        <section class="recovery-step active" data-recovery-step="1">
+          <div class="recovery-step-badge"><span data-icon="mail"></span> ШАГ 1 · ПОЧТА</div>
+          <div class="auth-field recovery-field">
+            <label for="recoveryEmail">Email аккаунта</label>
+            <input id="recoveryEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+          </div>
+          <div class="auth-error" id="passwordResetError" role="alert"></div>
+          <div class="email-confirm-actions">
+            <button class="email-resend-btn" id="recoverySendBtn" type="button">Получить код</button>
+            <button class="email-cancel-btn" id="passwordResetCancelBtn" type="button">Отмена</button>
+          </div>
+          <div class="recovery-hint">На этом шаге мы не сообщаем, существует ли аккаунт с такой почтой.</div>
+        </section>
+
+        <section class="recovery-step" data-recovery-step="2">
+          <div class="recovery-step-badge"><span data-icon="shield"></span> ШАГ 2 · КОД</div>
+          <div class="recovery-email-chip" id="recoveryEmailChip">—</div>
+          <div class="auth-field recovery-field">
+            <label for="recoveryCode">Код из письма</label>
+            <input id="recoveryCode" class="recovery-code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="000000" />
+          </div>
+          <div class="auth-error" id="recoveryCodeError" role="alert"></div>
+          <div class="email-confirm-actions">
+            <button class="email-resend-btn" id="recoveryVerifyBtn" type="button">Проверить код</button>
+          </div>
+          <div class="recovery-actions-row">
+            <button class="recovery-secondary" id="recoveryBackToEmailBtn" type="button">← Изменить почту</button>
+            <button class="recovery-secondary" id="recoveryResendBtn" type="button">Отправить код снова</button>
+          </div>
+          <div class="recovery-hint" id="recoveryResendHint">Код действует ограниченное время. Проверьте также папку «Спам».</div>
+        </section>
+
+        <section class="recovery-step" data-recovery-step="3">
+          <div class="recovery-step-badge"><span data-icon="lock"></span> ШАГ 3 · НОВЫЙ ПАРОЛЬ</div>
+          <div class="auth-field recovery-field">
+            <label for="newPassword">Новый пароль</label>
+            <input id="newPassword" type="password" autocomplete="new-password" placeholder="Минимум 6 символов" minlength="6" />
+          </div>
+          <div class="auth-field recovery-field">
+            <label for="newPasswordRepeat">Повторите пароль</label>
+            <input id="newPasswordRepeat" type="password" autocomplete="new-password" placeholder="Повторите пароль" minlength="6" />
+          </div>
+          <div class="auth-error" id="recoveryPasswordError" role="alert"></div>
+          <div class="email-confirm-actions">
+            <button class="email-resend-btn" id="passwordResetBtn" type="button">Сохранить новый пароль</button>
+          </div>
+          <div class="recovery-actions-row single">
+            <button class="recovery-secondary" id="recoveryBackToCodeBtn" type="button">← Вернуться к коду</button>
+          </div>
+          <div class="recovery-title-note">После смены пароля вы автоматически вернётесь в аккаунт.</div>
+        </section>
       </div>
     </div>
   <script>
@@ -2893,7 +3221,8 @@
       user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/>',
       lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
       download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
-      link: '<path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/>'
+      link: '<path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/>',
+      donate: '<path d="M7.5 8.5h9a3.5 3.5 0 0 1 0 7h-9a3.5 3.5 0 0 1 0-7Z"/><path d="M12 11v2M13.4 12c0-.7-.6-1-1.4-1s-1.4.3-1.4 1 .6 1 1.4 1 1.4.3 1.4 1-.6 1-1.4 1-1.4-.3-1.4-1M12 5v3M12 16v3"/>'
     };
 
     function icon(name, size = 24, className = '') {
@@ -2968,6 +3297,14 @@
     let pendingVideoUrl = null;
     let pendingThumbnailBlob = null;
     let pendingThumbnailUrl = null;
+    let pendingCoverBlob = null;
+    let pendingCoverUrl = null;
+    let currentCameraFacingMode = 'user';
+    let cameraZoom = 1;
+    let cameraZoomMin = 1;
+    let cameraZoomMax = 1;
+    let cameraZoomStep = 0.1;
+    let cameraHardwareZoom = false;
     let currentCommentsVideoId = null;
     let currentMoreVideoId = null;
     let currentCommentContextId = null;
@@ -2984,6 +3321,9 @@
     let authUser = null;
     let authMode = "signin";
     let pendingConfirmationEmail = '';
+    let recoveryEmail = '';
+    let recoveryVerified = false;
+    let recoveryResendTimer = null;
     let resendCooldownTimer = null;
     let remoteLoaded = false;
     const followingIds = new Set();
@@ -2999,6 +3339,8 @@
     let profileEditSelectedFile = null;
     let profileEditObjectUrl = '';
     let profileEditBusy = false;
+    let donationSyncTimer = null;
+    let donationRealtimeChannel = null;
 
     // ========== UTILITIES ==========
     function escapeHtml(value) {
@@ -3032,7 +3374,11 @@
         videosCount: Number(profile.videos_count || 0),
         bio: profile.bio || '',
         isPrivate: Boolean(profile.is_private),
+        hideLikes: Boolean(profile.hide_likes),
         isVerified: Boolean(profile.is_verified),
+        donationUsername: profile.donationalerts_username || '',
+        donationEnabled: Boolean(profile.donationalerts_enabled),
+        donationConnected: Boolean(profile.donationalerts_connected),
         profileEditLastAt: profile.profile_edit_last_at || null
       };
     }
@@ -3267,28 +3613,171 @@
     }
 
 
+    function setPasswordRecoveryStep(step) {
+      const safeStep = Math.max(1, Math.min(3, Number(step) || 1));
+      document.querySelectorAll('[data-recovery-step]').forEach(section => {
+        section.classList.toggle('active', Number(section.dataset.recoveryStep) === safeStep);
+      });
+      document.querySelectorAll('[data-recovery-progress]').forEach(bar => {
+        const n = Number(bar.dataset.recoveryProgress);
+        bar.classList.toggle('active', n <= safeStep);
+      });
+
+      const title = document.getElementById('passwordRecoveryTitle');
+      const subtitle = document.getElementById('passwordRecoverySubtitle');
+      if (title) title.textContent = safeStep === 1 ? 'Восстановление доступа' : safeStep === 2 ? 'Введите код' : 'Новый пароль';
+      if (subtitle) subtitle.textContent = safeStep === 1
+        ? 'Укажите почту аккаунта — мы отправим одноразовый код для восстановления доступа.'
+        : safeStep === 2
+          ? 'Введите код из письма, чтобы подтвердить, что это ваша почта.'
+          : 'Придумайте новый пароль и повторите его ещё раз.';
+
+      const modal = document.getElementById('passwordResetModal');
+      if (modal) hydrateIcons(modal);
+    }
+
+    function clearRecoveryMessages() {
+      ['passwordResetError','recoveryCodeError','recoveryPasswordError'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '';
+      });
+    }
+
+    function stopRecoveryResendTimer() {
+      if (recoveryResendTimer) {
+        clearInterval(recoveryResendTimer);
+        recoveryResendTimer = null;
+      }
+    }
+
+    function startRecoveryResendTimer() {
+      stopRecoveryResendTimer();
+      const btn = document.getElementById('recoveryResendBtn');
+      const hint = document.getElementById('recoveryResendHint');
+      if (!btn || !hint) return;
+      let left = 60;
+      btn.disabled = true;
+      btn.textContent = `Отправить код снова · ${left}s`;
+      hint.textContent = 'Повторная отправка доступна через минуту.';
+      recoveryResendTimer = setInterval(() => {
+        left -= 1;
+        if (left <= 0) {
+          stopRecoveryResendTimer();
+          btn.disabled = false;
+          btn.textContent = 'Отправить код снова';
+          hint.textContent = 'Можно запросить новый код.';
+          return;
+        }
+        btn.textContent = `Отправить код снова · ${left}s`;
+      }, 1000);
+    }
+
+    function openPasswordResetModal(prefillEmail = '') {
+      closeModals();
+      stopRecoveryResendTimer();
+      recoveryEmail = String(prefillEmail || document.getElementById('authEmail')?.value || '').trim();
+      recoveryVerified = false;
+      clearRecoveryMessages();
+      const email = document.getElementById('recoveryEmail');
+      const code = document.getElementById('recoveryCode');
+      const p1 = document.getElementById('newPassword');
+      const p2 = document.getElementById('newPasswordRepeat');
+      const chip = document.getElementById('recoveryEmailChip');
+      if (email) email.value = recoveryEmail;
+      if (code) code.value = '';
+      if (p1) p1.value = '';
+      if (p2) p2.value = '';
+      if (chip) chip.textContent = recoveryEmail || '—';
+      setPasswordRecoveryStep(1);
+      document.getElementById('passwordResetModal').classList.add('visible');
+      hydrateIcons(document.getElementById('passwordResetModal'));
+      setTimeout(() => document.getElementById('recoveryEmail')?.focus(), 50);
+    }
+
     async function sendPasswordReset() {
-      const email = document.getElementById('authEmail').value.trim();
-      const authError = document.getElementById('authError');
-      if (!email) {
-        if (authError) authError.textContent = 'Сначала укажите email, на который зарегистрирован аккаунт.';
-        document.getElementById('authEmail')?.focus();
+      const prefill = document.getElementById('authEmail')?.value.trim() || '';
+      closeModals();
+      openPasswordResetModal(prefill);
+    }
+
+    async function sendRecoveryCode(showStep = true) {
+      const emailInput = document.getElementById('recoveryEmail');
+      const err = document.getElementById('passwordResetError');
+      const btn = document.getElementById('recoverySendBtn');
+      const email = String(emailInput?.value || '').trim().toLowerCase();
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+        if (err) err.textContent = 'Введите корректный email.';
+        emailInput?.focus();
         return;
       }
-      const btn = document.getElementById('authForgot');
-      btn.disabled = true;
-      btn.textContent = 'Отправляем письмо…';
+      recoveryEmail = email;
+      const chip = document.getElementById('recoveryEmailChip');
+      if (chip) chip.textContent = email;
+      if (btn) { btn.disabled = true; btn.textContent = 'Отправляем код…'; }
+      if (err) err.textContent = '';
       try {
         const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirectUrl() });
         if (error) throw error;
-        if (authError) authError.textContent = 'Письмо для смены пароля отправлено. Проверьте входящие и папку «Спам».';
-        showToast('Письмо для восстановления пароля отправлено.');
+        showStep ? setPasswordRecoveryStep(2) : null;
+        startRecoveryResendTimer();
+        showToast('Если этот email зарегистрирован, код уже отправлен.');
+        setTimeout(() => document.getElementById('recoveryCode')?.focus(), 60);
       } catch (error) {
-        console.error('Password reset error:', error);
-        if (authError) authError.textContent = error?.message || 'Не удалось отправить письмо для восстановления пароля.';
+        console.error('Password reset request error:', error);
+        if (err) err.textContent = error?.message || 'Не удалось отправить код. Попробуйте ещё раз.';
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Забыли пароль?';
+        if (btn) { btn.disabled = false; btn.textContent = 'Получить код'; }
+      }
+    }
+
+    async function verifyRecoveryCode() {
+      const token = String(document.getElementById('recoveryCode')?.value || '').replace(/\D/g, '').trim();
+      const err = document.getElementById('recoveryCodeError');
+      const btn = document.getElementById('recoveryVerifyBtn');
+      if (!recoveryEmail) {
+        setPasswordRecoveryStep(1);
+        return;
+      }
+      if (token.length < 6) {
+        if (err) err.textContent = 'Введите код из письма.';
+        document.getElementById('recoveryCode')?.focus();
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.textContent = 'Проверяем…'; }
+      if (err) err.textContent = '';
+      try {
+        const { data, error } = await db.auth.verifyOtp({ email: recoveryEmail, token, type: 'recovery' });
+        if (error) throw error;
+        if (!data?.session?.user) throw new Error('Не удалось открыть защищённую сессию восстановления.');
+        authUser = data.session.user;
+        recoveryVerified = true;
+        stopRecoveryResendTimer();
+        setPasswordRecoveryStep(3);
+        setTimeout(() => document.getElementById('newPassword')?.focus(), 60);
+      } catch (error) {
+        console.error('Password recovery OTP error:', error);
+        if (err) err.textContent = error?.message || 'Код неверный или уже истёк. Запросите новый код.';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Проверить код'; }
+      }
+    }
+
+    async function resendRecoveryCode() {
+      if (!recoveryEmail) return;
+      const btn = document.getElementById('recoveryResendBtn');
+      const hint = document.getElementById('recoveryResendHint');
+      if (btn?.disabled) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Отправляем…'; }
+      if (hint) hint.textContent = '';
+      try {
+        const { error } = await db.auth.resetPasswordForEmail(recoveryEmail, { redirectTo: getAuthRedirectUrl() });
+        if (error) throw error;
+        showToast('Новый код отправлен на почту.');
+        startRecoveryResendTimer();
+      } catch (error) {
+        console.error('Recovery resend error:', error);
+        if (hint) hint.textContent = error?.message || 'Не удалось отправить новый код.';
+        if (btn) { btn.disabled = false; btn.textContent = 'Отправить код снова'; }
       }
     }
 
@@ -3396,31 +3885,31 @@
         friendIds.clear();
         currentUser = {
           id: null, name: 'Гость', username: 'guest', avatar: avatars[8], followers: 0, following: 0, likes: 0,
-          bio: 'Войдите, чтобы публиковать и взаимодействовать с видео'
+          bio: 'Войдите, чтобы публиковать и взаимодействовать с видео', donationUsername:'', donationEnabled:false, donationConnected:false
         };
       }
       updateAuthUi();
+      if (authUser) {
+        startDonationSync();
+      } else {
+        stopDonationSync();
+      }
       if (authUser) {
         if (document.getElementById('emailConfirmModal')?.classList.contains('visible')) closeModals();
         pendingConfirmationEmail = '';
       }
     }
 
-    function openPasswordResetModal() {
-      closeModals();
-      const err = document.getElementById('passwordResetError');
-      if (err) err.textContent = '';
-      document.getElementById('newPassword').value = '';
-      document.getElementById('newPasswordRepeat').value = '';
-      document.getElementById('passwordResetModal').classList.add('visible');
-      hydrateIcons(document.getElementById('passwordResetModal'));
-    }
-
     async function saveNewPassword() {
       const p1 = document.getElementById('newPassword').value;
       const p2 = document.getElementById('newPasswordRepeat').value;
-      const err = document.getElementById('passwordResetError');
+      const err = document.getElementById('recoveryPasswordError');
       const btn = document.getElementById('passwordResetBtn');
+      if (!recoveryVerified && !authUser) {
+        err.textContent = 'Сначала подтвердите код из письма.';
+        setPasswordRecoveryStep(2);
+        return;
+      }
       if (p1.length < 6) { err.textContent = 'Пароль должен содержать минимум 6 символов.'; return; }
       if (p1 !== p2) { err.textContent = 'Пароли не совпадают.'; return; }
       btn.disabled = true; btn.textContent = 'Сохраняем…'; err.textContent = '';
@@ -3428,6 +3917,8 @@
         const { error } = await db.auth.updateUser({ password: p1 });
         if (error) throw error;
         closeModals();
+        recoveryEmail = '';
+        recoveryVerified = false;
         showToast('Пароль изменён. Вы вошли в аккаунт.');
         await refreshAuthState();
         await loadRemoteData();
@@ -3484,6 +3975,22 @@
     }
 
     // ========== DATABASE ==========
+    const CONTENT_FILTER_TERMS = ['18+','nsfw','porn','porno','xxx','explicit','эротик','порн','обнаж','секс','насилие','жесток','кровь','шок-контент'];
+    function contentFilterBlocked(video){
+      const level=Number(userSettings.content_filter_level||0);
+      if(level<=0) return false;
+      const text=normalizeModerationText(`${video?.title||''} ${video?.desc||''} ${video?.hashtags||''} ${video?.music||''}`);
+      const terms=level===1?CONTENT_FILTER_TERMS.slice(0,8):CONTENT_FILTER_TERMS;
+      return terms.some(term=>text.includes(normalizeModerationText(term)));
+    }
+    function videoAllowedBySettings(video){
+      if(!video?.src || contentFilterBlocked(video)) return false;
+      const hidden=(userSettings.hidden_words||[]).map(x=>normalizeModerationText(x)).filter(Boolean);
+      if(!hidden.length) return true;
+      const hay=normalizeModerationText(`${video.desc||''} ${video.hashtags||''} ${video.music||''} ${video.title||''}`);
+      return !hidden.some(word=>hay.includes(word));
+    }
+
     async function loadRemoteData(options = {}) {
       setDbStatus(options.force ? 'Обновление ленты…' : 'Загрузка данных…');
       try {
@@ -3499,7 +4006,7 @@
         const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
         if (userIds.length) {
           const profileResult = await db.from('profiles')
-            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,is_verified')
+            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,donationalerts_username,donationalerts_enabled,donationalerts_connected')
             .in('id', userIds);
           if (profileResult.error) throw profileResult.error;
           (profileResult.data || []).forEach(p => {
@@ -3511,12 +4018,7 @@
         users = [...profileCache.values()].filter(u => userIds.includes(u.id));
         if (!users.length) users = [...demoUsers];
 
-        const hiddenWords = (userSettings.hidden_words || []).map(x => String(x).toLowerCase()).filter(Boolean);
-        const mapped = rows.map(normalizeVideo).filter(v => {
-          if (!v.src) return false;
-          const haystack = `${v.desc || ''} ${v.hashtags || ''} ${v.music || ''}`.toLowerCase();
-          return !hiddenWords.some(word => haystack.includes(word));
-        });
+        const mapped = rows.map(normalizeVideo).filter(videoAllowedBySettings);
 
         if (authUser) {
           const [subResult, likeResult, saveResult] = await Promise.all([
@@ -3549,7 +4051,12 @@
           });
         }
 
-        videos = mapped;
+        const visibleMapped = mapped.filter(v => {
+          if (!v.author?.isPrivate) return true;
+          if (authUser && String(v.authorId)===String(authUser.id)) return true;
+          return Boolean(authUser && followingIds.has(v.authorId));
+        });
+        videos = visibleMapped;
         remoteLoaded = true;
         setDbStatus(authUser ? `Supabase · ${currentUser.username}` : 'Supabase · публичный режим', true);
         if (!videos.length) generateDemoVideos();
@@ -3932,6 +4439,10 @@
                 <div class="icon-btn">${icon('share',24)}</div>
                 <div class="count">${formatCount(v.shares)}</div>
               </div>
+              ${v.author?.donationEnabled && v.author?.donationUsername ? `<div class="side-action donate-btn" data-id="${escapeHtml(v.id)}" title="Поддержать автора">
+                <div class="icon-btn">${icon('donate',23)}</div>
+                <div class="count">Донат</div>
+              </div>` : ''}
               <div class="side-action more-btn" data-id="${escapeHtml(v.id)}">
                 <div class="icon-btn${(!v.isMine && v.favorited) ? saveBadge : ''}">${v.isMine ? icon('more',24) : (v.favorited ? icon('bookmarkFill',23) : icon('more',24))}</div>
               </div>
@@ -3947,6 +4458,11 @@
         container.appendChild(card);
       });
 
+      const endMessage = document.createElement('div');
+      endMessage.className = 'feed-end-message';
+      endMessage.innerHTML = `<div class="end-title">Видео больше нет</div><div class="end-subtitle">Вы дошли до конца ленты</div>`;
+      container.appendChild(endMessage);
+
       setupMediaLoading(container);
       hydrateIcons(container);
       applyFeedSoundState(container);
@@ -3960,7 +4476,7 @@
           toggleVideoSound(soundButton.closest('.video-card'));
           return;
         }
-        const target = e.target.closest('[data-id], [data-userid], .subscribe-btn, .like-btn, .comment-btn, .share-btn, .more-btn, .author, .author-avatar');
+        const target = e.target.closest('[data-id], [data-userid], .subscribe-btn, .like-btn, .comment-btn, .share-btn, .donate-btn, .more-btn, .author, .author-avatar');
         if (!target) return;
         if (target.classList.contains('subscribe-btn') || target.closest('.subscribe-btn')) {
           const btn = target.classList.contains('subscribe-btn') ? target : target.closest('.subscribe-btn');
@@ -3974,6 +4490,9 @@
         }
         if (target.classList.contains('share-btn') || target.closest('.share-btn')) {
           openShareModal(target.closest('.share-btn').dataset.id); return;
+        }
+        if (target.classList.contains('donate-btn') || target.closest('.donate-btn')) {
+          await openDonationForVideo(target.closest('.donate-btn').dataset.id); return;
         }
         if (target.classList.contains('more-btn') || target.closest('.more-btn')) {
           openMore(target.closest('.more-btn').dataset.id); return;
@@ -4331,7 +4850,7 @@
       if (key) {
         try {
           const { data, error } = await db.from('profiles')
-            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,is_verified,profile_edit_last_at')
+            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected')
             .eq('id', key)
             .maybeSingle();
           if (!error && data) {
@@ -4344,6 +4863,12 @@
         }
       }
 
+      if (authUser && user.id && String(authUser.id) !== String(user.id)) {
+        try {
+          const { data: subRow, error: subError } = await db.from('subscriptions').select('follower_id').eq('follower_id', authUser.id).eq('following_id', user.id).maybeSingle();
+          user.__isFollowing = !subError && Boolean(subRow);
+        } catch (_) { user.__isFollowing = false; }
+      } else { user.__isFollowing = false; }
       currentProfile = user;
       showScreen('profile');
       const isMe = Boolean(authUser && user.id === authUser.id);
@@ -4363,7 +4888,8 @@
             ? `<button class="btn-secondary" id="profileAuthAction">Редактировать профиль</button>`
             : isGuestProfile
               ? `<button class="btn-primary" id="profileAuthAction">Войти</button>`
-              : (() => { const following = videos.some(v => String(v.authorId || v.author.id) === String(user.id) && v.subscribed); return `<button class="${following ? 'btn-secondary' : 'btn-primary'}" id="profileFollowBtn">${following ? 'Подписан' : 'Подписаться'}</button>`; })()
+              : (() => { const following = Boolean(user.__isFollowing); return `<button class="${following ? 'btn-secondary' : 'btn-primary'}" id="profileFollowBtn">${following ? 'Подписан' : 'Подписаться'}</button>${following ? `<button class="btn-secondary" id="profileMessageBtn">${icon('message',16)} Написать</button>` : ''}`; })()
+          + (user.donationEnabled && user.donationUsername && !isGuestProfile ? `<button class="btn-secondary" id="profileDonateBtn">${icon('donate',16)} Поддержать</button>` : '')
           }
         </div>
         <div class="profile-name">${escapeHtml(user.name)}</div>
@@ -4371,7 +4897,7 @@
         <div class="profile-stats">
           <button class="stat profile-stat-button" type="button" data-profile-connection="followers"><div class="num">${formatCount(followersCount)}</div><div class="label">Подписчики</div></button>
           <button class="stat profile-stat-button" type="button" data-profile-connection="following"><div class="num">${formatCount(followingCount)}</div><div class="label">Подписки</div></button>
-          <div class="stat"><div class="num">${formatCount(likesCount)}</div><div class="label">Лайки</div></div>
+          <div class="stat"><div class="num">${user.hideLikes ? '—' : formatCount(likesCount)}</div><div class="label">Лайки</div></div>
         </div>
         ${user.bio ? `<div class="profile-bio">${escapeHtml(user.bio)}</div>` : ''}
         <div style="height:2px"></div>`;
@@ -4381,12 +4907,32 @@
 
       const authAction = document.getElementById('profileAuthAction');
       if (authAction) authAction.onclick = () => isMe ? openProfileEditor() : openAuthModal();
+      const profileDonateBtn = document.getElementById('profileDonateBtn');
+      if (profileDonateBtn) profileDonateBtn.onclick = () => openDonationForAuthor(user);
+      const profileMessageBtn = document.getElementById('profileMessageBtn');
+      if (profileMessageBtn) profileMessageBtn.onclick = () => openDirectChat(user.id);
+
       const followBtn = document.getElementById('profileFollowBtn');
       if (followBtn) followBtn.onclick = async () => {
         const targetVideo = videos.find(v => String(v.authorId || v.author.id) === String(user.id));
-        if (targetVideo) await toggleSubscribe(targetVideo.id);
-        followBtn.textContent = targetVideo?.subscribed ? 'Подписан' : 'Подписаться';
-        followBtn.className = targetVideo?.subscribed ? 'btn-secondary' : 'btn-primary';
+        if (targetVideo) {
+          await toggleSubscribe(targetVideo.id);
+          user.__isFollowing = Boolean(targetVideo.subscribed);
+        } else {
+          try {
+            const result = await db.from('subscriptions').select('follower_id').eq('follower_id',authUser.id).eq('following_id',user.id).maybeSingle();
+            const isFollowing = Boolean(result.data);
+            if(isFollowing) {
+              await db.from('subscriptions').delete().eq('follower_id',authUser.id).eq('following_id',user.id);
+              user.__isFollowing=false;
+            } else {
+              const ins=await db.from('subscriptions').insert({follower_id:authUser.id,following_id:user.id});
+              if(ins.error && ins.error.code!=='23505') throw ins.error;
+              user.__isFollowing=true;
+            }
+          } catch(e) { console.error(e); showToast('Не удалось изменить подписку.'); return; }
+        }
+        openProfile(user.id);
       };
 
       document.querySelectorAll('.profile-tabs .ptab').forEach(t => {
@@ -4682,42 +5228,43 @@
     const SETTINGS_TABS = [
       ['account','Аккаунт','user'],['privacy','Конфиденциальность','eye'],['notifications','Уведомления','message'],
       ['playback','Видео и лента','play'],['appearance','Внешний вид','settings'],['accessibility','Доступность','users'],
-      ['content','Контент','flag'],['data','Данные и трафик','refresh'],['security','Безопасность','lock']
+      ['content','Контент','flag'],['data','Данные и трафик','refresh'],['donations','Донаты','donate'],['security','Безопасность','lock']
     ];
     const DEFAULT_SETTINGS = {
       theme:'dark',language:'ru',autoplay:true,data_saver:false,video_quality:'auto',private_account:false,
       who_can_comment:'all',who_can_message:'all',who_can_duet:'all',hide_likes:false,allow_downloads:true,
       push_enabled:false,notify_likes:true,notify_comments:true,notify_follows:true,notify_mentions:true,
-      notify_reposts:true,notify_messages:true,email_notifications:true,dnd_from:'',dnd_to:'',content_filter_level:0,
-      screen_time_limit:0,break_reminder:false,hidden_words:[]
+      notify_reposts:true,notify_messages:true,notify_donations:true,email_notifications:true,dnd_from:'',dnd_to:'',content_filter_level:0,
+      screen_time_limit:0,break_reminder:false,hidden_words:[],
+      comment_moderation_enabled:true,comment_moderation_level:2
     };
     let userSettings={...DEFAULT_SETTINGS};
     let currentSettingsTab='account';
     let screenTimeStartedAt = Date.now();
     let breakReminderTimer = null;
 
+    function localSettingsKey(){ return `smotriuSettings:${authUser?.id || 'guest'}`; }
     function readLocalSettings(){
-      try { return JSON.parse(localStorage.getItem('smotriuSettings') || '{}') || {}; } catch (_) { return {}; }
+      try {
+        const scoped=JSON.parse(localStorage.getItem(localSettingsKey())||'{}')||{};
+        if(Object.keys(scoped).length) return scoped;
+        return !authUser ? (JSON.parse(localStorage.getItem('smotriuSettings')||'{}')||{}) : {};
+      } catch (_) { return {}; }
     }
-    function cacheLocalSettings(){
-      try { localStorage.setItem('smotriuSettings', JSON.stringify(userSettings)); } catch (_) {}
-    }
+    function cacheLocalSettings(){ try { localStorage.setItem(localSettingsKey(), JSON.stringify(userSettings)); } catch (_) {} }
 
     async function loadUserSettings(){
-      if(!authUser){userSettings={...DEFAULT_SETTINGS,...readLocalSettings()}; applyAllSettings(); return;}
+      const local=readLocalSettings();
+      if(!authUser){ userSettings={...DEFAULT_SETTINGS,...local}; applyAllSettings(); return; }
       try{
         const {data,error}=await db.from('user_settings').select('*').eq('user_id',authUser.id).maybeSingle();
         if(error) throw error;
-        const flat = data && typeof data === 'object' ? data : {};
-        const nested = flat.settings && typeof flat.settings === 'object' ? flat.settings : {};
-        userSettings={...DEFAULT_SETTINGS,...readLocalSettings(),...nested,...flat};
-        delete userSettings.settings;
-        applyAllSettings();
-      }catch(e){
-        console.warn('settings load',e);
-        userSettings={...DEFAULT_SETTINGS,...readLocalSettings()};
-        applyAllSettings();
-      }
+        const flat=data&&typeof data==='object'?data:{};
+        const nested=flat.settings&&typeof flat.settings==='object'?flat.settings:{};
+        const merged={...DEFAULT_SETTINGS,...local,...nested};
+        Object.keys(DEFAULT_SETTINGS).forEach(k=>{ if(Object.prototype.hasOwnProperty.call(flat,k)) merged[k]=flat[k]; });
+        userSettings=merged; cacheLocalSettings(); applyAllSettings();
+      }catch(e){ console.warn('settings load',e); userSettings={...DEFAULT_SETTINGS,...local}; applyAllSettings(); }
     }
 
     function applyTheme(){
@@ -4754,13 +5301,14 @@
       });
     }
 
-    function applyAllSettings(){
-      applyTheme();
-      applyLanguage();
-      applyPlaybackSettings();
-      setupBreakReminder();
-      updateDownloadSettingsUI();
+    function notificationSettingFor(type){
+      const key=({like:'notify_likes',comment:'notify_comments',follow:'notify_follows',message:'notify_messages',mention:'notify_mentions',repost:'notify_reposts',donation:'notify_donations'})[type];
+      return key ? userSettings[key]!==false : true;
     }
+    function timeToMinutes(value){ const m=String(value||'').match(/^(\d{2}):(\d{2})$/); return m?Number(m[1])*60+Number(m[2]):null; }
+    function isDndActive(){ const from=timeToMinutes(userSettings.dnd_from),to=timeToMinutes(userSettings.dnd_to); if(from===null||to===null||from===to)return false; const now=new Date(),m=now.getHours()*60+now.getMinutes(); return from<to?m>=from&&m<to:(m>=from||m<to); }
+    function applyNotificationSettings(){ const b=document.querySelector('.bottom-nav .btn[data-screen=\"inbox\"]'); if(b&&isDndActive()) b.classList.remove('has-unread'); }
+    function applyAllSettings(){ applyTheme(); applyLanguage(); applyPlaybackSettings(); applyNotificationSettings(); setupBreakReminder(); updateDownloadSettingsUI(); }
 
     async function requestPushPermission(){
       if(!('Notification' in window)){ showToast('Браузер не поддерживает push-уведомления.'); return false; }
@@ -4772,28 +5320,21 @@
     }
 
     async function saveUserSetting(key,value){
-      if(!authUser){
-        userSettings[key]=value; cacheLocalSettings(); applyAllSettings(); showToast('Настройка сохранена на этом устройстве.');
-        return;
-      }
-      if(key==='push_enabled' && value){
-        const granted=await requestPushPermission();
-        value=granted;
-      }
-      userSettings[key]=value;
-      cacheLocalSettings();
-      if(key==='private_account'||key==='hide_likes') await syncPrivacyProfile(key,value);
-      applyAllSettings();
-      const payload={user_id:authUser.id,[key]:value,updated_at:new Date().toISOString()};
+      if(!Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS,key)){ showToast('Неизвестная настройка.'); return; }
+      const previous=userSettings[key];
+      if(key==='push_enabled'&&value) value=await requestPushPermission();
+      if(key==='screen_time_limit') value=Math.max(0,Math.min(240,Number(value)||0));
+      if(key==='comment_moderation_level') value=Math.max(1,Math.min(2,Number(value)||2));
+      if(key==='content_filter_level') value=Math.max(0,Math.min(2,Number(value)||0));
+      if(key==='dnd_from'||key==='dnd_to') value=/^\d{2}:\d{2}$/.test(String(value||''))?value:'';
+      if(key==='hidden_words') value=Array.isArray(value)?value.map(x=>String(x).trim()).filter(Boolean).slice(0,100):[];
+      userSettings[key]=value; cacheLocalSettings(); applyAllSettings();
       try{
-        const {error}=await db.from('user_settings').upsert(payload,{onConflict:'user_id'});
-        if(error)throw error;
-        const note=document.getElementById('settingsSaveNote');
-        if(note){note.textContent='Сохранено';clearTimeout(note._t);note._t=setTimeout(()=>note.textContent='',1400);}
-      }catch(e){
-        console.error(e);
-        showToast('Сохранено на устройстве; база недоступна.');
-      }
+        if(['content_filter_level','hidden_words'].includes(key)){ await loadRemoteData({force:true}); renderFeed({reshuffle:false}); }
+        if(key==='private_account'||key==='hide_likes') await syncPrivacyProfile(key,value);
+        if(authUser){ const {error}=await db.from('user_settings').upsert({user_id:authUser.id,[key]:value,updated_at:new Date().toISOString()},{onConflict:'user_id'}); if(error)throw error; }
+        const note=document.getElementById('settingsSaveNote'); if(note){note.textContent='Сохранено';clearTimeout(note._t);note._t=setTimeout(()=>note.textContent='',1400);}
+      }catch(e){ console.error('setting save',e); userSettings[key]=previous; cacheLocalSettings(); applyAllSettings(); showToast('Не удалось сохранить настройку.'); }
     }
 
     async function resetUserSettings(){
@@ -4838,38 +5379,41 @@
     function setupBreakReminder(){
       clearTimeout(breakReminderTimer);
       if(!userSettings.break_reminder || !(Number(userSettings.screen_time_limit)>0)) return;
+      screenTimeStartedAt=Date.now();
       const minutes=Number(userSettings.screen_time_limit);
-      breakReminderTimer=setTimeout(()=>{
-        showToast(`Вы уже ${minutes} мин. смотрите видео. Сделайте небольшой перерыв.`);
-        setupBreakReminder();
-      }, minutes*60*1000);
+      breakReminderTimer=setTimeout(()=>{ if(document.visibilityState==='visible') showToast(`Вы уже ${minutes} мин. смотрите видео. Сделайте небольшой перерыв.`); setupBreakReminder(); }, minutes*60*1000);
     }
 
     function renderSettings(){
       const sidebar=document.getElementById('settingsSidebar'), content=document.getElementById('settingsContent'); if(!sidebar||!content)return;
       sidebar.innerHTML=SETTINGS_TABS.map(([id,label,ic])=>`<button class="settings-tab ${id===currentSettingsTab?'active':''}" type="button" data-settings-tab="${id}">${icon(ic,17)}<span>${label}</span></button>`).join('');
       hydrateIcons(sidebar);
-      const titles={account:['Аккаунт','Управление профилем и входом.'],privacy:['Конфиденциальность','Кто видит контент и может взаимодействовать с вами.'],notifications:['Уведомления','Управляйте push и email-уведомлениями.'],playback:['Видео и лента','Настройки воспроизведения и экономии трафика.'],appearance:['Внешний вид','Тема и язык интерфейса.'],accessibility:['Доступность','Комфорт просмотра и напоминания.'],content:['Контент','Фильтры и скрытые слова.'],data:['Данные и трафик','Качество видео и использование сети.'],security:['Безопасность','Параметры аккаунта и восстановление доступа.']};
+      const titles={account:['Аккаунт','Управление профилем и входом.'],privacy:['Конфиденциальность','Кто видит контент и может взаимодействовать с вами.'],notifications:['Уведомления','Управляйте push и email-уведомлениями.'],playback:['Видео и лента','Настройки воспроизведения и экономии трафика.'],appearance:['Внешний вид','Тема и язык интерфейса.'],accessibility:['Доступность','Комфорт просмотра и напоминания.'],content:['Контент','Фильтры и скрытые слова.'],data:['Данные и трафик','Качество видео и использование сети.'],donations:['Донаты','DonationAlerts и золотой комментарий для поддержки авторов.'],security:['Безопасность','Параметры аккаунта и восстановление доступа.']};
       let body='';
       if(currentSettingsTab==='account') body=`<div class="settings-card"><div class="settings-card-title">Профиль</div><div class="setting-row"><div class="setting-icon">${icon('user',18)}</div><div class="setting-main"><div class="setting-label">Имя и профиль</div><div class="setting-help">Измените имя, аватар и описание.</div></div><div class="setting-control"><button class="u-btn" id="settingsProfileBtn">Открыть</button></div></div></div><div class="settings-card"><div class="settings-card-title">Сессия</div><div class="setting-row"><div class="setting-icon">${icon('mail',18)}</div><div class="setting-main"><div class="setting-label">Email</div><div class="setting-help">${escapeHtml(authUser?.email||'Не выполнен вход')}</div></div><div class="setting-control"><button class="u-btn" id="settingsLogout">Выйти</button></div></div></div><div class="settings-card"><div class="settings-card-title">Сброс</div><div class="setting-row"><div class="setting-icon">${icon('refresh',18)}</div><div class="setting-main"><div class="setting-label">Сбросить все настройки</div><div class="setting-help">Вернуть стандартные значения.</div></div><div class="setting-control"><button class="u-btn" id="settingsReset">Сбросить</button></div></div></div>`;
       if(currentSettingsTab==='privacy') body=`<div class="settings-card"><div class="settings-card-title">Видимость</div>${settingRow('eye','Приватный аккаунт','Подписчики будут одобряться вручную.','private_account')}${settingRow('heart','Скрывать лайки','Скрывать количество лайков у ваших публикаций.','hide_likes')}${settingRow('download','Разрешать скачивание','Разрешить сохранение ваших видео на устройство.','allow_downloads')}</div><div class="settings-card"><div class="settings-card-title">Кто может</div>${settingRow('message','Комментировать','Выберите, кто может оставлять комментарии.','who_can_comment','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}${settingRow('message','Писать сообщения','Выберите, кто может отправлять вам сообщения.','who_can_message','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}${settingRow('users','Дуэты','Кто может создавать дуэты с вашими видео.','who_can_duet','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}</div>`;
-      if(currentSettingsTab==='notifications') body=`<div class="settings-card"><div class="settings-card-title">Push</div>${settingRow('message','Push-уведомления','Разрешить уведомления браузера.','push_enabled')}${settingRow('heart','Лайки','Когда кто-то лайкает ваши видео.','notify_likes')}${settingRow('message','Комментарии','Новые комментарии под вашими видео.','notify_comments')}${settingRow('userPlus','Новые подписчики','Когда на вас подписываются.','notify_follows')}${settingRow('message','Упоминания','Когда вас упоминают.','notify_mentions')}${settingRow('share','Репосты','Когда ваше видео репостят.','notify_reposts')}${settingRow('message','Сообщения','Новые личные сообщения.','notify_messages')}${settingRow('mail','Email-уведомления','Важные письма на электронную почту.','email_notifications')}</div><div class="settings-card"><div class="settings-card-title">Не беспокоить</div>${settingRow('settings','Начало','Время начала тишины.','dnd_from','time')}${settingRow('settings','Окончание','Время окончания тишины.','dnd_to','time')}</div>`;
-      if(currentSettingsTab==='playback') body=`<div class="settings-card"><div class="settings-card-title">Воспроизведение</div>${settingRow('play','Автовоспроизведение','Запускать видео автоматически при появлении в ленте.','autoplay')}${settingRow('settings','Качество по умолчанию','Предпочтительное качество, если источник его поддерживает.','video_quality','select',[['auto','Авто'],['360','360p'],['480','480p'],['720','720p'],['1080','1080p']])}${settingRow('refresh','Экономия трафика','Предзагрузка только метаданных видео.','data_saver')}</div>`;
+      if(currentSettingsTab==='notifications') body=`<div class="settings-card"><div class="settings-card-title">Push</div>${settingRow('message','Push-уведомления','Показывать уведомления браузера, когда разрешение выдано.','push_enabled')}${settingRow('heart','Лайки','Когда кто-то лайкает ваши видео.','notify_likes')}${settingRow('message','Комментарии','Новые комментарии под вашими видео.','notify_comments')}${settingRow('userPlus','Новые подписчики','Когда на вас подписываются.','notify_follows')}${settingRow('message','Упоминания','Когда вас упоминают.','notify_mentions')}${settingRow('share','Репосты','Когда ваше видео репостят.','notify_reposts')}${settingRow('message','Сообщения','Новые личные сообщения.','notify_messages')}${settingRow('donate','Донаты','Новые донаты от ваших зрителей.','notify_donations')}${settingRow('mail','Email-уведомления','Важные письма на электронную почту.','email_notifications')}</div><div class="settings-card"><div class="settings-card-title">Не беспокоить</div><div class="settings-save-note" style="text-align:left;padding:8px 16px 12px">В указанное время новые push-уведомления не показываются.</div>${settingRow('settings','Начало','Время начала тишины.','dnd_from','time')}${settingRow('settings','Окончание','Время окончания тишины.','dnd_to','time')}</div>`;
+      if(currentSettingsTab==='playback') body=`<div class="settings-card"><div class="settings-card-title">Воспроизведение</div>${settingRow('play','Автовоспроизведение','Запускать видео автоматически при появлении в ленте.','autoplay')}${settingRow('settings','Качество по умолчанию','Предпочтительное качество, если для видео доступна соответствующая версия.','video_quality','select',[['auto','Авто'],['360','360p'],['480','480p'],['720','720p'],['1080','1080p']])}${settingRow('refresh','Экономия трафика','Предзагрузка только метаданных видео.','data_saver')}</div>`;
       if(currentSettingsTab==='appearance') body=`<div class="settings-card"><div class="settings-card-title">Интерфейс</div>${settingRow('settings','Тема','Тёмная, светлая или системная тема.','theme','select',[['dark','Тёмная'],['light','Светлая'],['system','Системная']])}${settingRow('message','Язык','Язык основных элементов интерфейса.','language','select',[['ru','Русский'],['en','English']])}</div>`;
       if(currentSettingsTab==='accessibility') body=`<div class="settings-card"><div class="settings-card-title">Комфорт</div>${settingRow('settings','Напоминание сделать перерыв','Напоминать отдохнуть после заданного лимита.','break_reminder')}${settingRow('settings','Лимит экранного времени','0 — без ограничения, минут.','screen_time_limit','number')}</div>`;
-      if(currentSettingsTab==='content') body=`<div class="settings-card"><div class="settings-card-title">Фильтры</div>${settingRow('flag','Фильтр контента','Уровень фильтра нежелательного контента.','content_filter_level','select',[['0','Минимальный'],['1','Средний'],['2','Строгий']])}<div class="setting-row"><div class="setting-icon">${icon('search',18)}</div><div class="setting-main"><div class="setting-label">Скрытые слова</div><div class="setting-help">Слова разделяйте запятыми.</div></div><div class="setting-control"><input type="text" id="hiddenWordsInput" value="${escapeHtml((userSettings.hidden_words||[]).join(', '))}" placeholder="слово, фраза"></div></div></div>`;
+      if(currentSettingsTab==='content') body=`<div class="settings-card"><div class="settings-card-title">Фильтры</div>${settingRow('flag','Фильтр контента','Уровень фильтра нежелательного контента.','content_filter_level','select',[['0','Минимальный'],['1','Средний'],['2','Строгий']])}<div class="setting-row"><div class="setting-icon">${icon('search',18)}</div><div class="setting-main"><div class="setting-label">Скрытые слова</div><div class="setting-help">Слова разделяйте запятыми.</div></div><div class="setting-control"><input type="text" id="hiddenWordsInput" value="${escapeHtml((userSettings.hidden_words||[]).join(', '))}" placeholder="слово, фраза"></div></div></div><div class="settings-card"><div class="settings-card-title">Модерация комментариев</div>${settingRow('shield','Фильтр комментариев','Быстрая проверка комментария до отправки. Нецензурная лексика блокируется сервером всегда; этот переключатель управляет дополнительной модерацией.','comment_moderation_enabled')}${settingRow('flag','Уровень защиты','Строгий режим дополнительно блокирует короткие токсичные реплики вроде «кринж» и «фу».','comment_moderation_level','select',[['1','Базовый'],['2','Строгий']])}<div class="moderation-note"><strong>Защита работает автоматически.</strong> Обходы с заменой символов и пробелами проверяются до сохранения комментария.</div></div>`;
       if(currentSettingsTab==='data') body=`<div class="settings-card"><div class="settings-card-title">Медиа</div>${settingRow('refresh','Экономия трафика','Более лёгкая загрузка видео и превью.','data_saver')}${settingRow('settings','Качество видео','Предпочтительное качество.','video_quality','select',[['auto','Авто'],['360','360p'],['480','480p'],['720','720p'],['1080','1080p']])}</div>`;
+      if(currentSettingsTab==='donations') body=`<div class="settings-card"><div class="settings-card-title">DonationAlerts</div><div class="setting-row"><div class="setting-icon">${icon('donate',18)}</div><div class="setting-main"><div class="setting-label">Username для страницы доната</div><div class="setting-help">Укажите username из вашей ссылки DonationAlerts вида donationalerts.com/r/username.</div></div><div class="setting-control" style="display:flex;gap:8px;align-items:center"><input type="text" id="donationUsernameInput" value="${escapeHtml(currentUser?.donationUsername||'')}" maxlength="80" placeholder="username" /><button class="u-btn" id="saveDonationUsername" type="button">Сохранить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('users',18)}</div><div class="setting-main"><div class="setting-label">Кнопка «Поддержать»</div><div class="setting-help">Показывать кнопку доната рядом с вашими видео и в профиле.</div></div><div class="setting-control"><label class="switch"><input type="checkbox" id="donationEnabledToggle" ${currentUser?.donationEnabled?'checked':''}><span class="switch-track"></span></label></div></div><div class="setting-row"><div class="setting-icon">${icon('link',18)}</div><div class="setting-main"><div class="setting-label">Подключение аккаунта</div><div class="setting-help">После подключения «Смотрю» автоматически импортирует новые донаты и превращает их в сообщения в комментариях.</div></div><div class="setting-control"><span class="donation-status ${currentUser?.donationConnected?'connected':'disconnected'}" id="donationStatus">${currentUser?.donationConnected?'Подключено':'Не подключено'}</span></div></div><div class="setting-row"><div class="setting-main"><div class="donation-settings-actions"><button class="u-btn" id="connectDonationBtn" type="button">${currentUser?.donationConnected?'Переподключить':'Подключить DonationAlerts'}</button>${currentUser?.donationConnected?'<button class="u-btn" id="disconnectDonationBtn" type="button">Отключить</button>':''}</div></div></div></div><div class="settings-card"><div class="settings-card-title">Золотой комментарий</div><div class="setting-row"><div class="setting-icon">${icon('donate',18)}</div><div class="setting-main"><div class="setting-label">Автоматическое закрепление</div><div class="setting-help">У автора один золотой комментарий — последнее сообщение от пользователя, который суммарно задонатил автору больше всех. Новый лидер автоматически заменяет прежний.</div></div><div class="setting-control"><span style="font-size:12px;color:#ffd76a;font-weight:800">RUB</span></div></div></div>`;
       if(currentSettingsTab==='security') body=`<div class="settings-card"><div class="settings-card-title">Безопасность</div><div class="setting-row"><div class="setting-icon">${icon('lock',18)}</div><div class="setting-main"><div class="setting-label">Пароль</div><div class="setting-help">Отправить письмо для восстановления доступа.</div></div><div class="setting-control"><button class="u-btn" id="settingsResetPassword">Сбросить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('mail',18)}</div><div class="setting-main"><div class="setting-label">Подтверждение email</div><div class="setting-help">Управляется через Supabase Auth.</div></div><div class="setting-control"><span style="font-size:12px;color:#76e3a4;font-weight:700">Защищено</span></div></div></div>`;
       const [title,sub]=titles[currentSettingsTab];
       content.innerHTML=`<div class="settings-inner"><div class="settings-title">${title}</div><div class="settings-subtitle">${sub}</div><div class="settings-save-note" id="settingsSaveNote"></div>${body}</div>`;
       hydrateIcons(content);
       sidebar.querySelectorAll('[data-settings-tab]').forEach(b=>b.addEventListener('click',()=>{currentSettingsTab=b.dataset.settingsTab;renderSettings();}));
-      content.querySelectorAll('[data-setting]').forEach(el=>el.addEventListener('change',async()=>{let value=el.type==='checkbox'?el.checked:el.value;if(el.dataset.setting==='content_filter_level'||el.dataset.setting==='screen_time_limit')value=Number(value||0);await saveUserSetting(el.dataset.setting,value);}));
+      content.querySelectorAll('[data-setting]').forEach(el=>el.addEventListener('change',async()=>{let value=el.type==='checkbox'?el.checked:el.value;if(el.dataset.setting==='content_filter_level'||el.dataset.setting==='screen_time_limit'||el.dataset.setting==='comment_moderation_level')value=Number(value||0);await saveUserSetting(el.dataset.setting,value);}));
       const hw=document.getElementById('hiddenWordsInput'); if(hw) hw.addEventListener('change',()=>saveUserSetting('hidden_words',hw.value.split(',').map(x=>x.trim()).filter(Boolean).slice(0,100)));
       document.getElementById('settingsLogout')?.addEventListener('click',signOut);
       document.getElementById('settingsReset')?.addEventListener('click',resetUserSettings);
       document.getElementById('settingsProfileBtn')?.addEventListener('click',()=>openProfileEdit());
       document.getElementById('settingsResetPassword')?.addEventListener('click',async()=>{ if(authUser?.email) await sendPasswordReset(authUser.email); });
+      document.getElementById('saveDonationUsername')?.addEventListener('click',saveDonationProfileSettings);
+      document.getElementById('donationEnabledToggle')?.addEventListener('change',saveDonationProfileSettings);
+      document.getElementById('connectDonationBtn')?.addEventListener('click',connectDonationAlerts);
+      document.getElementById('disconnectDonationBtn')?.addEventListener('click',disconnectDonationAlerts);
     }
 
     async function openSettings(){
@@ -4893,34 +5437,165 @@
       tab = tab || document.querySelector('.inbox-tabs .itab.active')?.dataset.itab || 'notifs';
       const list = document.getElementById('inboxList');
       if (!authUser) {
-        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('mail',48)}</div><div>Войдите в аккаунт, чтобы видеть уведомления и сообщения.</div><button class="btn-primary" style="margin-top:14px;width:100%;" onclick="openAuthModal()">Войти</button></div>`;
-        return;
-      }
-      if (tab === 'chats') {
-        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div></div>`;
+        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('mail',48)}</div><div>Войдите в аккаунт, чтобы видеть уведомления, активность и чаты.</div><button class="btn-primary" style="margin-top:14px;width:100%;" onclick="openAuthModal()">Войти</button></div>`;
         return;
       }
       try {
-        const { data, error } = await db.from('notifications').select('id,created_at,payload,is_read,video_id,text,comment_id,actor_id,type').eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(50);
+        if (tab === 'chats') {
+          await renderChatList();
+          return;
+        }
+        const { data, error } = await db.from('notifications').select('id,created_at,payload,is_read,video_id,text,comment_id,actor_id,type').eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(80);
         if (error) throw error;
         const actorIds = [...new Set((data || []).map(n => n.actor_id).filter(Boolean))];
         if (actorIds.length) {
           const { data: actors } = await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id', actorIds);
           (actors || []).forEach(p => profileCache.set(p.id, userFromProfile(p)));
         }
-        if (!data?.length) {
-          list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Уведомлений пока нет.</div></div>`;
+        const rows = tab === 'activity' ? (data || []).filter(n => ['like','comment','follow','donation'].includes(n.type)) : (data || []).filter(n => notificationSettingFor(n.type));
+        if (!rows.length) {
+          list.innerHTML = `<div class="empty-state"><div class="icon">${icon(tab === 'activity' ? 'refresh' : 'message',48)}</div><div>${tab === 'activity' ? 'Активности пока нет.' : 'Уведомлений пока нет.'}</div></div>`;
           return;
         }
-        list.innerHTML = data.map(n => {
-          const actor = n.actor_id && profileCache.get(n.actor_id);
-          const text = n.text || ({like:'лайкнул ваше видео',comment:'прокомментировал ваше видео',follow:'подписался на вас',message:'написал вам'}[n.type] || 'есть новое уведомление');
-          return `<div class="notif-item"><div class="avatar"><img src="${escapeHtml(actor?.avatar || fallbackAvatar('П'))}" /></div><div class="content"><div class="text"><b>${escapeHtml(actor?.name || 'Пользователь')}</b> ${escapeHtml(text)}</div><div class="time">${formatRelativeTime(n.created_at)}</div></div></div>`;
-        }).join('');
+        if (tab === 'activity') {
+          list.innerHTML = rows.map(n => {
+            const actor = n.actor_id && profileCache.get(n.actor_id);
+            const text = n.type === 'donation' ? (n.text || 'Новый донат') : (n.text || ({like:'лайкнул ваше видео',comment:'прокомментировал ваше видео',follow:'подписался на вас'}[n.type] || 'новая активность'));
+            const iconName = n.type === 'like' ? 'heartFill' : n.type === 'comment' ? 'message' : n.type === 'follow' ? 'userPlus' : 'donate';
+            const label = n.type === 'donation' ? escapeHtml(text) : `<b>${escapeHtml(actor?.name || 'Пользователь')}</b> ${escapeHtml(text)}`;
+            return `<div class="activity-item"><div class="activity-icon">${icon(iconName,18)}</div><div class="activity-main"><div class="activity-text">${label}</div><div class="activity-time">${formatRelativeTime(n.created_at)}${n.is_read ? '' : ' · новое'}</div></div></div>`;
+          }).join('');
+        } else {
+          list.innerHTML = rows.map(n => {
+            const actor = n.actor_id && profileCache.get(n.actor_id);
+            const text = n.text || ({like:'лайкнул ваше видео',comment:'прокомментировал ваше видео',follow:'подписался на вас',message:'написал вам'}[n.type] || 'есть новое уведомление');
+            const body = n.type === 'donation' ? escapeHtml(text) : `<b>${escapeHtml(actor?.name || 'Пользователь')}</b> ${escapeHtml(text)}`;
+            const iconName = n.type === 'message' ? 'message' : n.type === 'like' ? 'heartFill' : n.type === 'comment' ? 'message' : n.type === 'follow' ? 'userPlus' : n.type === 'donation' ? 'donate' : 'refresh';
+            return `<div class="notif-item" data-notification-id="${escapeHtml(n.id)}"><div class="avatar"><img src="${escapeHtml(actor?.avatar || fallbackAvatar(n.type === 'donation' ? '₽' : 'П'))}" /></div><div class="content"><div class="text"><span style="display:inline-flex;vertical-align:middle;margin-right:5px;opacity:.85">${icon(iconName,15)}</span>${body}</div><div class="time">${formatRelativeTime(n.created_at)}${n.is_read ? '' : ' · новое'}</div></div></div>`;
+          }).join('');
+        }
+        const unreadIds = (data || []).filter(n => !n.is_read).map(n => n.id);
+        if (unreadIds.length) {
+          await db.from('notifications').update({ is_read:true, read_at:new Date().toISOString() }).eq('user_id',authUser.id).in('id',unreadIds);
+        }
       } catch (error) {
         console.error(error);
-        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('alert',48)}</div><div>Не удалось загрузить уведомления.</div></div>`;
+        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('alert',48)}</div><div>Не удалось загрузить раздел.</div></div>`;
       }
+    }
+
+    async function renderChatList() {
+      const list = document.getElementById('inboxList');
+      const { data: memberships, error: memberError } = await db.from('conversation_members').select('conversation_id,unread_count,updated_at').eq('user_id',authUser.id).order('updated_at',{ascending:false}).limit(100);
+      if (memberError) throw memberError;
+      const ids = [...new Set((memberships || []).map(x => x.conversation_id).filter(Boolean))];
+      if (!ids.length) {
+        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div><div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Кнопка «Написать» появится в профиле автора после подписки.</div></div>`;
+        return;
+      }
+      const [{data: conversations,error:convError},{data: members,error:allMemberError}] = await Promise.all([
+        db.from('conversations').select('id,type,last_text,last_sender,last_kind,updated_at').in('id',ids).eq('type','private'),
+        db.from('conversation_members').select('conversation_id,user_id').in('conversation_id',ids)
+      ]);
+      if (convError) throw convError;
+      if (allMemberError) throw allMemberError;
+      const otherIds = [...new Set((members || []).filter(m=>String(m.user_id)!==String(authUser.id)).map(m=>m.user_id).filter(Boolean))];
+      if (otherIds.length) {
+        const {data: profiles} = await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id',otherIds);
+        (profiles || []).forEach(p=>profileCache.set(p.id,userFromProfile(p)));
+      }
+      const ownUnread = new Map((memberships || []).map(m=>[m.conversation_id,Number(m.unread_count||0)]));
+      const rows=(conversations||[]).filter(c=> (members||[]).filter(m=>m.conversation_id===c.id).length===2).map(c=>{
+        const other=(members||[]).find(m=>m.conversation_id===c.id && String(m.user_id)!==String(authUser.id));
+        return {c,other:other && profileCache.get(other.user_id),unread:ownUnread.get(c.id)||0};
+      }).filter(x=>x.other);
+      if(!rows.length){ list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div></div>`; return; }
+      list.innerHTML=rows.map(({c,other,unread})=>`<div class="chat-list-item" data-open-chat="${escapeHtml(other.id)}"><div class="chat-list-avatar"><img src="${escapeHtml(other.avatar||fallbackAvatar(other.name))}" alt=""><span class="chat-unread" ${unread?'':'style="display:none"'}>${unread>99?'99+':unread}</span></div><div class="chat-list-main"><div class="chat-list-top"><div class="chat-list-name">${escapeHtml(other.name)}</div><div class="chat-list-time">${formatRelativeTime(c.updated_at)}</div></div><div class="chat-list-preview">${escapeHtml(c.last_text || 'Начните общение')}</div></div></div>`).join('');
+      list.querySelectorAll('[data-open-chat]').forEach(el=>el.addEventListener('click',()=>openDirectChat(el.dataset.openChat)));
+    }
+
+    let activeChatId = null;
+    let activeChatPartnerId = null;
+    let activeChatChannel = null;
+
+    async function openDirectChat(otherUserId) {
+      const user = await requireAuth('написать автору');
+      if (!user) return;
+      if (!otherUserId || String(otherUserId)===String(user.id)) return;
+      try {
+        const {data: subRow,error: subError}=await db.from('subscriptions').select('follower_id').eq('follower_id',user.id).eq('following_id',otherUserId).maybeSingle();
+        if(subError) throw subError;
+        if(!subRow){ showToast('Сначала подпишитесь на автора.'); return; }
+        const {data: partner}=await db.from('profiles').select('id,name,display_name,username,avatar_url').eq('id',otherUserId).maybeSingle();
+        if(!partner) throw new Error('USER_NOT_FOUND');
+        const rpc=await db.rpc('get_or_create_direct_chat',{p_other_user:otherUserId});
+        if(rpc.error) throw rpc.error;
+        activeChatId=rpc.data; activeChatPartnerId=otherUserId;
+        document.getElementById('chatHeadName').textContent=partner.display_name||partner.name||'Пользователь';
+        document.getElementById('chatHeadStatus').textContent=`@${partner.username||'user'}`;
+        document.getElementById('chatHeadAvatar').src=partner.avatar_url||fallbackAvatar(partner.name||'П');
+        document.getElementById('chatBody').innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Загрузка сообщений…</div></div>`;
+        document.getElementById('chatModal').classList.add('visible');
+        hydrateIcons(document.getElementById('chatModal'));
+        await loadChatMessages();
+        await markChatRead();
+        if(activeChatChannel){ try{ await db.removeChannel(activeChatChannel); }catch(_){} }
+        activeChatChannel=db.channel(`chat:${activeChatId}`);
+        activeChatChannel.on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`conversation_id=eq.${activeChatId}`},async payload=>{
+          if(!payload?.new) return;
+          await renderChatMessagesFromDb(true);
+          await markChatRead();
+        }).subscribe();
+      } catch(error){
+        console.error('openDirectChat',error);
+        const msg=String(error?.message||'');
+        if(msg.includes('FOLLOW_REQUIRED')) showToast('Чтобы написать автору, подпишитесь на него.');
+        else if(msg.includes('MESSAGES_DISABLED')) showToast('Автор запретил личные сообщения.');
+        else showToast('Не удалось открыть чат.');
+      }
+    }
+
+    async function loadChatMessages(){ return renderChatMessagesFromDb(false); }
+    async function renderChatMessagesFromDb(smartScroll=false){
+      if(!activeChatId) return;
+      const {data,error}=await db.from('messages').select('id,sender_id,body,created_at,read_at').eq('conversation_id',activeChatId).order('created_at',{ascending:true}).limit(200);
+      if(error) throw error;
+      const body=document.getElementById('chatBody');
+      if(!data?.length){ body.innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Начните диалог первым сообщением.</div></div>`; return; }
+      body.innerHTML=data.map(m=>`<div class="chat-message ${String(m.sender_id)===String(authUser.id)?'mine':''}"><div class="chat-message-body">${escapeHtml(m.body)}</div><div class="chat-message-meta"><span>${new Date(m.created_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>${String(m.sender_id)===String(authUser.id)&&m.read_at?'✓':''}</div></div>`).join('');
+      if(smartScroll || body.scrollHeight-body.scrollTop-body.clientHeight<180) body.scrollTop=body.scrollHeight;
+    }
+
+    async function markChatRead(){
+      if(!activeChatId || !authUser) return;
+      const {data:last}=await db.from('messages').select('id').eq('conversation_id',activeChatId).order('created_at',{ascending:false}).limit(1).maybeSingle();
+      if(last?.id) await db.from('conversation_members').update({unread_count:0,last_read_message_id:last.id,updated_at:new Date().toISOString()}).eq('conversation_id',activeChatId).eq('user_id',authUser.id);
+      await db.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('user_id',authUser.id).eq('conversation_id',activeChatId).eq('type','message');
+    }
+
+    async function sendChatMessage(){
+      if(!activeChatId) return;
+      const input=document.getElementById('chatInput'); const btn=document.getElementById('chatSendBtn');
+      const body=String(input.value||'').trim(); if(!body) return;
+      btn.disabled=true;
+      try{
+        const {error}=await db.rpc('send_direct_message',{p_conversation_id:activeChatId,p_body:body});
+        if(error) throw error;
+        input.value=''; input.style.height='40px';
+        await renderChatMessagesFromDb(true);
+      }catch(error){
+        console.error('sendChatMessage',error);
+        const msg=String(error?.message||'');
+        if(msg.includes('NOT_A_MEMBER')) showToast('Чат больше недоступен.');
+        else if(msg.includes('EMPTY_MESSAGE')) showToast('Введите сообщение.');
+        else showToast('Не удалось отправить сообщение.');
+      }finally{btn.disabled=false;input.focus();}
+    }
+
+    function closeDirectChat(){
+      document.getElementById('chatModal')?.classList.remove('visible');
+      if(activeChatChannel){ try{ db.removeChannel(activeChatChannel); }catch(_){} activeChatChannel=null; }
+      activeChatId=null; activeChatPartnerId=null;
     }
 
     function formatRelativeTime(value) {
@@ -4984,11 +5659,75 @@
       document.getElementById('galleryBtn').addEventListener('click', () => document.getElementById('galleryInput').click());
       document.getElementById('galleryInput').addEventListener('change', handleGallery);
       document.getElementById('nextBtn').addEventListener('click', goToPublish);
-      document.getElementById('flipBtn').addEventListener('click', () => {
-        const video = document.getElementById('cameraPreview');
-        video.style.transform = video.style.transform === 'scaleX(-1)' ? '' : 'scaleX(-1)';
-      });
-      document.getElementById('publishBtn').addEventListener('click', publishVideo);
+      document.getElementById('flipBtn').addEventListener('click', switchCamera);
+      document.getElementById('enableCameraBtn').addEventListener('click', startCamera);
+      document.getElementById('enableCameraBottomBtn').addEventListener('click', startCamera);
+      document.getElementById('zoomOutBtn').addEventListener('click', () => setCameraZoom(cameraZoom - cameraZoomStep));
+      document.getElementById('zoomInBtn').addEventListener('click', () => setCameraZoom(cameraZoom + cameraZoomStep));
+      document.getElementById('coverEditBtn').addEventListener('click', () => document.getElementById('coverInput').click());
+      document.getElementById('coverInput').addEventListener('change', handleCoverChange);
+      updateCameraControls();
+    }
+
+    function getActiveCameraTrack() {
+      return mediaStream?.getVideoTracks?.()[0] || null;
+    }
+
+    function updateCameraControls() {
+      const enabled = Boolean(mediaStream?.active);
+      document.getElementById('enableCameraBtn')?.classList.toggle('hidden', enabled);
+      const zoomOut = document.getElementById('zoomOutBtn');
+      const zoomIn = document.getElementById('zoomInBtn');
+      if (zoomOut) zoomOut.disabled = !enabled || cameraZoom <= cameraZoomMin + 0.001;
+      if (zoomIn) zoomIn.disabled = !enabled || cameraZoom >= cameraZoomMax - 0.001;
+      [zoomOut, zoomIn].forEach(btn => { if (btn) btn.style.opacity = btn.disabled ? '.45' : '1'; });
+    }
+
+    async function setCameraZoom(nextZoom) {
+      const track = getActiveCameraTrack();
+      if (!track) { showToast('Сначала включите камеру.'); return; }
+      const target = Math.max(cameraZoomMin, Math.min(cameraZoomMax, Number(nextZoom.toFixed(2))));
+      try {
+        if (cameraHardwareZoom) {
+          await track.applyConstraints({ advanced: [{ zoom: target }] });
+          cameraZoom = target;
+        } else {
+          // Fallback for browsers that expose no hardware zoom. The preview still
+          // gets a useful framing adjustment instead of failing the button action.
+          cameraZoom = target;
+          const video = document.getElementById('cameraPreview');
+          const mirror = currentCameraFacingMode === 'user' ? ' scaleX(-1)' : '';
+          video.style.transform = `scale(${cameraZoom})${mirror}`;
+        }
+      } catch (error) {
+        console.warn('Camera zoom error:', error);
+        showToast('Эта камера не поддерживает зум.');
+      }
+      updateCameraControls();
+    }
+
+    function readCameraZoomCapabilities(track) {
+      const caps = track?.getCapabilities?.();
+      const range = caps?.zoom;
+      if (range && Number.isFinite(range.min) && Number.isFinite(range.max) && Number(range.max) > Number(range.min)) {
+        cameraHardwareZoom = true;
+        cameraZoomMin = Number(range.min);
+        cameraZoomMax = Number(range.max);
+        cameraZoomStep = Number(range.step) || 0.1;
+        cameraZoom = Math.max(cameraZoomMin, Math.min(cameraZoomMax, cameraZoom));
+      } else {
+        cameraHardwareZoom = false;
+        cameraZoomMin = 1;
+        cameraZoomMax = 1.8;
+        cameraZoomStep = 0.1;
+        cameraZoom = 1;
+      }
+    }
+
+    function resetCameraTransform() {
+      const video = document.getElementById('cameraPreview');
+      if (!video) return;
+      video.style.transform = currentCameraFacingMode === 'user' ? 'scaleX(-1)' : '';
     }
 
     async function startCamera() {
@@ -4997,17 +5736,45 @@
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('getUserMedia unavailable');
         if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } }, audio: true });
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: currentCameraFacingMode },
+            width: { ideal: 720, max: 1080 },
+            height: { ideal: 1280, max: 1920 },
+            aspectRatio: { ideal: 9 / 16 }
+          },
+          audio: true
+        });
         video.srcObject = mediaStream;
         video.src = '';
         video.style.display = 'block';
+        readCameraZoomCapabilities(getActiveCameraTrack());
+        resetCameraTransform();
         placeholder.style.display = 'none';
+        updateCameraControls();
         return true;
       } catch (err) {
         console.warn('Camera error:', err);
         video.style.display = 'none';
         placeholder.style.display = 'none';
+        document.getElementById('enableCameraBtn')?.classList.remove('hidden');
+        updateCameraControls();
         return false;
+      }
+    }
+
+    async function switchCamera() {
+      if (isRecording) {
+        showToast('Сменить камеру во время записи нельзя.');
+        return;
+      }
+      currentCameraFacingMode = currentCameraFacingMode === 'user' ? 'environment' : 'user';
+      cameraZoom = 1;
+      const ready = await startCamera();
+      if (!ready) {
+        currentCameraFacingMode = currentCameraFacingMode === 'user' ? 'environment' : 'user';
+        await startCamera();
+        showToast('Не удалось переключить камеру.');
       }
     }
 
@@ -5019,6 +5786,8 @@
       document.getElementById('recordBtn').classList.remove('recording');
       document.getElementById('recordTimer').classList.remove('visible');
       document.getElementById('nextBtn').classList.remove('visible');
+      cameraZoom = 1; cameraZoomMin = 1; cameraZoomMax = 1; cameraZoomStep = 0.1; cameraHardwareZoom = false;
+      updateCameraControls();
     }
 
     async function toggleRecord() {
@@ -5140,12 +5909,40 @@
       });
     }
 
+    function handleCoverChange(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { showToast('Выберите изображение для обложки.'); return; }
+      if (file.size > 8 * 1024 * 1024) { showToast('Обложка должна быть не больше 8 МБ.'); return; }
+      if (pendingCoverUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingCoverUrl);
+      pendingCoverBlob = file;
+      pendingCoverUrl = URL.createObjectURL(file);
+      const cover = document.getElementById('coverPreview');
+      const oldButton = document.getElementById('coverEditBtn');
+      cover.innerHTML = `<img src="${escapeHtml(pendingCoverUrl)}" alt="" />`;
+      const label = document.createElement('div');
+      label.className = 'cover-label';
+      label.textContent = 'Обложка';
+      cover.appendChild(label);
+      if (oldButton) cover.appendChild(oldButton);
+      document.getElementById('coverInput').value = '';
+    }
+
     async function goToPublish() {
       if (!pendingVideoBlob) return;
       stopCamera();
       showScreen('publish');
       const cover = document.getElementById('coverPreview');
       cover.innerHTML = '';
+      if (pendingCoverUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingCoverUrl);
+      pendingCoverBlob = null;
+      pendingCoverUrl = null;
+      const coverButton = document.createElement('button');
+      coverButton.className = 'cover-edit-btn';
+      coverButton.id = 'coverEditBtn';
+      coverButton.type = 'button';
+      coverButton.textContent = 'Изменить обложку';
+      coverButton.addEventListener('click', () => document.getElementById('coverInput').click());
 
       if (pendingThumbnailUrl && pendingThumbnailUrl.startsWith('blob:')) {
         URL.revokeObjectURL(pendingThumbnailUrl);
@@ -5173,6 +5970,7 @@
         }
       }
       const label = document.createElement('div'); label.className = 'cover-label'; label.textContent = 'Обложка'; cover.appendChild(label);
+      cover.appendChild(coverButton);
     }
 
     async function publishVideo() {
@@ -5216,12 +6014,14 @@
         const isImage = file.type.startsWith('image/');
         let thumbnailUrl = isImage ? publicUrl : null;
 
-        if (!isImage && pendingThumbnailBlob) {
+        const coverBlob = pendingCoverBlob || (!isImage ? pendingThumbnailBlob : null);
+        if (coverBlob) {
           try {
             progress.style.width = '82%'; pct.textContent = '82%';
-            const thumbPath = `${user.id}/thumbnails/${crypto.randomUUID()}.jpg`;
-            const thumbUpload = await db.storage.from(STORAGE_BUCKET).upload(thumbPath, pendingThumbnailBlob, {
-              contentType: 'image/jpeg',
+            const thumbExt = coverBlob.type === 'image/png' ? 'png' : 'jpg';
+            const thumbPath = `${user.id}/thumbnails/${crypto.randomUUID()}.${thumbExt}`;
+            const thumbUpload = await db.storage.from(STORAGE_BUCKET).upload(thumbPath, coverBlob, {
+              contentType: coverBlob.type || 'image/jpeg',
               upsert: false,
               cacheControl: '86400'
             });
@@ -5297,8 +6097,10 @@
     function resetPublishForm() {
       if (pendingVideoUrl && pendingVideoUrl.startsWith('blob:')) URL.revokeObjectURL(pendingVideoUrl);
       if (pendingThumbnailUrl && pendingThumbnailUrl.startsWith('blob:')) URL.revokeObjectURL(pendingThumbnailUrl);
+      if (pendingCoverUrl && pendingCoverUrl.startsWith('blob:')) URL.revokeObjectURL(pendingCoverUrl);
       pendingVideoBlob = null; pendingVideoUrl = null;
       pendingThumbnailBlob = null; pendingThumbnailUrl = null;
+      pendingCoverBlob = null; pendingCoverUrl = null;
       document.getElementById('pubDesc').value = '';
       document.getElementById('pubTags').value = '';
       document.getElementById('galleryInput').value = '';
@@ -5456,14 +6258,28 @@
       document.getElementById('hideCommentAction').addEventListener('click', hideCurrentComment);
       document.getElementById('saveStickerAction').addEventListener('click', saveCurrentSticker);
       document.getElementById('cancelCommentContext').addEventListener('click', closeCommentContext);
+      document.getElementById('chatSendBtn')?.addEventListener('click', sendChatMessage);
+      document.getElementById('chatBackBtn')?.addEventListener('click', closeDirectChat);
+      document.getElementById('chatCloseBtn')?.addEventListener('click', closeDirectChat);
+      document.getElementById('chatInput')?.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChatMessage(); } });
+      document.getElementById('chatInput')?.addEventListener('input', e => { e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,110)+'px'; });
       document.querySelectorAll('.auth-tab').forEach(t => t.addEventListener('click', () => setAuthMode(t.dataset.authMode)));
       document.getElementById('authSubmit').addEventListener('click', submitAuth);
       document.getElementById('authClose').addEventListener('click', closeModals);
       document.getElementById('emailResendBtn').addEventListener('click', resendConfirmationEmail);
       document.getElementById('emailCancelBtn').addEventListener('click', closeModals);
       document.getElementById('authForgot').addEventListener('click', sendPasswordReset);
+      document.getElementById('recoverySendBtn').addEventListener('click', () => sendRecoveryCode(true));
+      document.getElementById('recoveryVerifyBtn').addEventListener('click', verifyRecoveryCode);
+      document.getElementById('recoveryResendBtn').addEventListener('click', resendRecoveryCode);
+      document.getElementById('recoveryBackToEmailBtn').addEventListener('click', () => { stopRecoveryResendTimer(); setPasswordRecoveryStep(1); });
+      document.getElementById('recoveryBackToCodeBtn').addEventListener('click', () => { setPasswordRecoveryStep(2); setTimeout(() => document.getElementById('recoveryCode')?.focus(), 40); });
       document.getElementById('passwordResetBtn').addEventListener('click', saveNewPassword);
-      document.getElementById('passwordResetCancelBtn').addEventListener('click', closeModals);
+      document.getElementById('passwordResetCancelBtn').addEventListener('click', () => { stopRecoveryResendTimer(); closeModals(); });
+      document.getElementById('recoveryCode').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8); });
+      document.getElementById('recoveryCode').addEventListener('keydown', e => { if (e.key === 'Enter') verifyRecoveryCode(); });
+      document.getElementById('recoveryEmail').addEventListener('keydown', e => { if (e.key === 'Enter') sendRecoveryCode(true); });
+      document.getElementById('newPasswordRepeat').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewPassword(); });
       document.getElementById('profileEditClose').addEventListener('click', closeModals);
       document.getElementById('profileEditCancel').addEventListener('click', closeModals);
       document.getElementById('profileEditSave').addEventListener('click', saveProfileEdits);
@@ -5491,7 +6307,7 @@
       ['touchend','touchmove','touchcancel'].forEach(type=>document.addEventListener(type,()=>{if(commentLongPressTimer){clearTimeout(commentLongPressTimer);commentLongPressTimer=null;}},{passive:true}));
     }
 
-    function closeModals() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; }
+    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; }
     function openSpeedModal() { closeModals(); document.getElementById('speedModal').classList.add('visible'); }
     function openMore(videoId) {
       currentMoreVideoId = videoId;
@@ -5561,11 +6377,302 @@
       }
     }
 
+    function donationUsernameValue() {
+      return String(currentUser?.donationUsername || '').trim().replace(/^@+/, '');
+    }
+
+    function donationPageUrl(username) {
+      const clean = String(username || '').trim().replace(/^@+/, '');
+      return clean ? `https://www.donationalerts.com/r/${encodeURIComponent(clean)}` : '';
+    }
+
+    function formatDonationAmount(amount, currency = 'RUB') {
+      const value = Number(amount || 0);
+      const formatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);
+      return `${formatted} ${String(currency || 'RUB').toUpperCase()}`;
+    }
+
+    function formatDonationTime(value) {
+      try { return new Intl.DateTimeFormat('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }).format(new Date(value)); }
+      catch (_) { return ''; }
+    }
+
+    async function openDonationForAuthor(author) {
+      const username = String(author?.donationUsername || '').trim().replace(/^@+/, '');
+      if (!username) { showToast('Автор ещё не подключил DonationAlerts.'); return; }
+      const url = donationPageUrl(username);
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (_) {
+        window.location.href = url;
+      }
+    }
+
+    async function openDonationForVideo(videoId) {
+      const v = videos.find(x => String(x.id) === String(videoId));
+      if (!v?.author) { showToast('Автор недоступен.'); return; }
+      await openDonationForAuthor(v.author);
+    }
+
+    function donationEventMarkup(donation) {
+      const gold = Boolean(donation.is_gold);
+      const donor = escapeHtml(donation.donor_name || 'Аноним');
+      const avatar = escapeHtml(fallbackAvatar(donation.donor_name || 'А'));
+      const displayMessage = donation.message ? maskModeratedText(donation.message) : '';
+      const message = displayMessage ? `<div class="donation-message">${escapeHtml(displayMessage)}</div>` : '';
+      const systemText = `<div class="donation-system-text">@${donor} задонатил ${escapeHtml(formatDonationAmount(donation.amount, donation.currency))}</div>`;
+      return `<div class="donation-comment ${gold?'gold':''}" data-donation-id="${escapeHtml(donation.id)}"><div class="donation-avatar"><img src="${avatar}" alt="" /></div><div class="donation-main"><div class="donation-name-row"><div class="donation-name">@${donor}</div><div class="donation-amount">${escapeHtml(formatDonationAmount(donation.amount, donation.currency))}</div>${gold?`<span class="donation-badge">${icon('donate',11)} Золотой комментарий</span>`:''}</div>${systemText}${message}<div class="donation-meta">${gold?`<span class="donation-pin">📌 Закреплён</span> · `:''}${escapeHtml(formatDonationTime(donation.donation_created_at))}</div></div></div>`;
+    }
+
+    async function loadDonationComments(videoId, creatorId) {
+      const result = await db.from('donation_events')
+        .select('id,creator_id,external_id,donor_name,amount,amount_rub,currency,message,video_id,donation_created_at,is_gold,is_pinned')
+        .eq('creator_id', creatorId)
+        .or(`video_id.eq.${videoId},is_gold.eq.true`)
+        .order('is_gold', { ascending:false })
+        .order('donation_created_at', { ascending:false })
+        .limit(40);
+      if (result.error) throw result.error;
+      return result.data || [];
+    }
+
+    function renderDonationSection(donations) {
+      if (!donations.length) return '';
+      const gold = donations.filter(d => d.is_gold && d.is_pinned);
+      const rest = donations.filter(d => !(d.is_gold && d.is_pinned));
+      return `<div class="donation-comments-section"><div class="donation-section-title"><span>Поддержка автора</span><span>${donations.length}</span></div>${gold.map(donationEventMarkup).join('')}${rest.map(donationEventMarkup).join('')}</div>`;
+    }
+
+    async function saveDonationProfileSettings() {
+      const user = await requireAuth('настроить донаты'); if (!user) return;
+      const input = document.getElementById('donationUsernameInput');
+      const toggle = document.getElementById('donationEnabledToggle');
+      const username = String(input?.value || '').trim().replace(/^@+/, '').replace(/[^a-zA-Z0-9_\-\.]+/g, '').slice(0,80);
+      const enabled = Boolean(toggle?.checked) && Boolean(username);
+      try {
+        const { data, error } = await db.from('profiles').update({
+          donationalerts_username: username || null,
+          donationalerts_enabled: enabled
+        }).eq('id', user.id).select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,is_verified,donationalerts_username,donationalerts_enabled,donationalerts_connected').single();
+        if (error) throw error;
+        currentUser = userFromProfile(data);
+        profileCache.set(currentUser.id, currentUser);
+        if (userSettings) renderSettings();
+        renderFeed({ reshuffle:false });
+        showToast(username ? 'Настройки донатов сохранены.' : 'Username донатов очищен.');
+      } catch (e) {
+        console.error('Donation profile save error:', e);
+        showToast('Не удалось сохранить настройки донатов.');
+      }
+    }
+
+    async function connectDonationAlerts() {
+      const user = await requireAuth('подключить DonationAlerts'); if (!user) return;
+      try {
+        const { data, error } = await db.functions.invoke('donationalerts', { body: { action:'authorize' } });
+        if (error) throw error;
+        if (!data?.url) throw new Error(data?.error || 'Ссылка авторизации не получена.');
+        window.location.href = data.url;
+      } catch (e) {
+        console.error('DonationAlerts connect error:', e);
+        showToast(e?.message || 'Не удалось открыть подключение DonationAlerts.');
+      }
+    }
+
+    async function disconnectDonationAlerts() {
+      const user = await requireAuth('отключить DonationAlerts'); if (!user) return;
+      try {
+        const { data, error } = await db.functions.invoke('donationalerts', { body: { action:'disconnect' } });
+        if (error) throw error;
+        if (!data?.disconnected) throw new Error(data?.error || 'Не удалось отключить.');
+        await refreshAuthState();
+        renderSettings();
+        showToast('DonationAlerts отключён.');
+      } catch (e) {
+        console.error('DonationAlerts disconnect error:', e);
+        showToast(e?.message || 'Не удалось отключить DonationAlerts.');
+      }
+    }
+
+    async function syncDonationAlerts() {
+      if (!authUser || !currentUser?.donationConnected) return;
+      try {
+        const { data, error } = await db.functions.invoke('donationalerts', { body:{ action:'sync' } });
+        if (error) throw error;
+        if (Number(data?.newCount || 0) > 0) {
+          showToast(`Новых донатов: ${data.newCount}`);
+          if (currentCommentsVideoId) await openComments(currentCommentsVideoId);
+        }
+      } catch (e) {
+        console.warn('DonationAlerts sync:', e?.message || e);
+      }
+    }
+
+    function stopDonationSync() {
+      if (donationSyncTimer) { clearInterval(donationSyncTimer); donationSyncTimer = null; }
+    }
+
+    function startDonationSync() {
+      stopDonationSync();
+      if (!authUser || !currentUser?.donationConnected) return;
+      setTimeout(() => syncDonationAlerts(), 1200);
+      donationSyncTimer = setInterval(syncDonationAlerts, 25000);
+    }
+
+    let inboxRealtimeChannel = null;
+    function handleLiveNotification(row){
+      if(!row || !authUser || String(row.user_id)!==String(authUser.id)) return;
+      const allowed=notificationSettingFor(row.type);
+      const suppressed=isDndActive();
+      const activeTab=document.querySelector('.inbox-tabs .itab.active')?.dataset.itab||'notifs';
+      if(currentScreenName==='inbox') renderInbox(activeTab).catch(()=>{});
+      const inboxBtn=document.querySelector('.bottom-nav .btn[data-screen=\"inbox\"]');
+      if(inboxBtn && allowed && !suppressed){ inboxBtn.classList.add('has-unread'); inboxBtn.setAttribute('data-unread','1'); }
+      if(!allowed || suppressed || userSettings.push_enabled!==true || !('Notification' in window) || Notification.permission!=='granted') return;
+      try{
+        const actor=row.actor_id&&profileCache.get(row.actor_id);
+        const title=row.type==='donation'?'Новый донат':row.type==='message'?'Новое сообщение':'Смотрю';
+        new Notification(title,{body:`${actor?.name?actor.name+': ':''}${row.text||'Новое событие в вашем аккаунте'}`,tag:`smotriu-${row.id}`});
+      }catch(e){ console.warn('browser notification',e); }
+    }
+    function setupInboxRealtime(){
+      try{
+        if(inboxRealtimeChannel) db.removeChannel(inboxRealtimeChannel);
+        inboxRealtimeChannel=db.channel('smotry-inbox-realtime').on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},payload=>handleLiveNotification(payload?.new)).subscribe();
+      }catch(e){ console.warn('Inbox realtime setup:',e); }
+    }
+
+    function setupDonationRealtime() {
+      try {
+        donationRealtimeChannel = db.channel('smotry-donation-events')
+          .on('postgres_changes', { event:'INSERT', schema:'public', table:'donation_events' }, payload => {
+            const row = payload?.new;
+            if (!row) return;
+            const isCurrentAuthor = currentProfile && String(currentProfile.id) === String(row.creator_id);
+            const affectsOpenVideo = currentCommentsVideoId && String(currentCommentsVideoId) === String(row.video_id);
+            if (isCurrentAuthor || affectsOpenVideo) {
+              if (currentCommentsVideoId) openComments(currentCommentsVideoId).catch(()=>{});
+            }
+          })
+          .subscribe();
+      } catch (e) { console.warn('Donation realtime setup:', e); }
+    }
+
+    function handleDonationAlertsReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('donationalerts');
+      if (!status) return;
+      try {
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete('donationalerts');
+        window.history.replaceState({}, document.title, clean.href);
+      } catch (_) {}
+      if (status === 'connected') {
+        setTimeout(async () => {
+          await refreshAuthState();
+          await syncDonationAlerts();
+          showToast('DonationAlerts подключён.');
+          if (currentSettingsTab === 'donations' && document.getElementById('settingsContent')) renderSettings();
+        }, 100);
+      } else if (status === 'error') {
+        setTimeout(() => showToast('Не удалось подключить DonationAlerts.'), 100);
+      }
+    }
+
+    // ========== COMMENT MODERATION ==========
+    const COMMENT_PROFANITY_TERMS = [
+      'бляд','бля','блять','ебан','ебать','ебл','еблан','ебись','нахуй','пизд','пиздец','хуйн','хуй','мудак','мраз','суч','шлюх','дроч','говн','дерьм','залуп','уеб','ёб','fuck','fucker','motherfucker','shit','bitch'
+    ];
+    const COMMENT_INSULT_TERMS = [
+      'дебил','идиот','кретин','тупиц','тупой','урод','ничтож','жалк','лох','лошар','долбо','придур','козел','козёл','чмо','даун','мусор','позор','тварь','дегенерат','баран'
+    ];
+
+    function normalizeModerationText(value){
+      return String(value||'')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/ё/g,'е')
+        .replace(/[aàáâäãå]/g,'a')
+        .replace(/[eèéêë]/g,'e')
+        .replace(/[oòóôöõ]/g,'o')
+        .replace(/[cç]/g,'c')
+        .replace(/[xх]/g,'x')
+        .replace(/[yу]/g,'y')
+        .replace(/[0]/g,'o')
+        .replace(/[1]/g,'i')
+        .replace(/[3]/g,'e')
+        .replace(/[4]/g,'a')
+        .replace(/[5]/g,'s')
+        .replace(/([a-zа-яё])\1{2,}/gu,'$1$1');
+    }
+
+    function moderationCompact(value){
+      return normalizeModerationText(value).replace(/[^a-zа-я0-9]+/giu,'');
+    }
+
+    function hasModerationTerm(value, terms){
+      const normalized=moderationCompact(value);
+      return terms.some(term=>normalized.includes(moderationCompact(term)));
+    }
+
+    function strictToxicPhrase(value){
+      const raw=normalizeModerationText(value).trim();
+      if(!raw || raw.length>64) return false;
+      const compact=moderationCompact(raw);
+      if(/^фу+[a-zа-я0-9]{0,14}$/iu.test(compact)) return true;
+      if(/^кринж[a-zа-я0-9]{0,14}$/iu.test(compact)) return true;
+      if(/\bты\s+(кринж|тупой|тупица|идиот|дебил|урод)\b/iu.test(raw)) return true;
+      if(/\bфу\s+ты\b/iu.test(raw)) return true;
+      return false;
+    }
+
+    function moderateCommentText(value){
+      const text=String(value||'').trim();
+      if(!text) return {allowed:false,reason:'empty'};
+      if(!userSettings.comment_moderation_enabled) return {allowed:true,reason:''};
+      if(hasModerationTerm(text,COMMENT_PROFANITY_TERMS)) return {allowed:false,reason:'profanity'};
+      if(hasModerationTerm(text,COMMENT_INSULT_TERMS)) return {allowed:false,reason:'insult'};
+      if(Number(userSettings.comment_moderation_level||2)>=2 && strictToxicPhrase(text)) return {allowed:false,reason:'toxicity'};
+      const hidden=(userSettings.hidden_words||[]).map(x=>String(x).trim()).filter(Boolean);
+      const lower=normalizeModerationText(text);
+      if(hidden.some(word=>lower.includes(normalizeModerationText(word)))) return {allowed:false,reason:'hidden_word'};
+      return {allowed:true,reason:''};
+    }
+
+    function moderationMessage(reason){
+      if(reason==='profanity') return 'Комментарий не опубликован: обнаружена нецензурная лексика.';
+      if(reason==='insult') return 'Комментарий не опубликован: обнаружено оскорбление.';
+      if(reason==='toxicity') return 'Комментарий не опубликован: слишком токсичная формулировка.';
+      if(reason==='hidden_word') return 'Комментарий не опубликован: используется скрытое слово.';
+      return 'Комментарий не опубликован.';
+    }
+
+    function maskModeratedText(value){
+      const text=String(value||'');
+      if(!text) return '';
+      let masked=text;
+      [...COMMENT_PROFANITY_TERMS,...COMMENT_INSULT_TERMS].forEach(term=>{
+        const safe=String(term).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        if(!safe) return;
+        masked=masked.replace(new RegExp(safe,'giu',),match=>'•'.repeat(Math.max(2,match.length)));
+      });
+      masked=masked.replace(/\bкринж\b/giu,'•••••').replace(/\bфу\b/giu,'••');
+      return masked;
+    }
+
     async function openComments(videoId) {
       currentCommentsVideoId = videoId;
       closeCommentContext();
       closeStickerPicker();
       const list = document.getElementById('commentsList');
+      const donateBtn = document.getElementById('commentDonateBtn');
+      const currentVideo = videos.find(x => String(x.id) === String(videoId));
+      const author = currentVideo?.author;
+      if (donateBtn) {
+        donateBtn.style.display = author?.donationEnabled && author?.donationUsername ? 'flex' : 'none';
+        donateBtn.innerHTML = `${icon('donate',15)} Поддержать @${escapeHtml(author?.username || 'автора')}`;
+        donateBtn.onclick = () => openDonationForAuthor(author);
+      }
       list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',36)}</div><div>Загрузка…</div></div>`;
       document.getElementById('commentsModal').classList.add('visible');
       document.getElementById('commentInput').value = '';
@@ -5574,16 +6681,18 @@
         if (error) throw error;
         const ids = [...new Set((data || []).map(c => c.user_id).filter(Boolean))];
         if (ids.length) {
-          const { data: profiles } = await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id', ids);
+          const { data: profiles } = await db.from('profiles').select('id,name,display_name,username,avatar_url,donationalerts_username,donationalerts_enabled,donationalerts_connected').in('id', ids);
           (profiles || []).forEach(p => profileCache.set(p.id, userFromProfile(p)));
         }
         await loadCommentInteractionState((data || []).map(c => c.id));
         const visible = (data || []).filter(c => !hiddenCommentIds.has(c.id));
-        if (!visible.length) {
-          list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',36)}</div><div>${data?.length ? 'Все скрытые вами комментарии здесь не показываются.' : 'Пока нет комментариев.'}</div></div>`;
-          return;
+        let donationEvents = [];
+        if (author?.id && author?.donationConnected) {
+          try { donationEvents = await loadDonationComments(videoId, author.id); }
+          catch (e) { console.warn('Donation comments load:', e); }
         }
-        list.innerHTML = visible.map(c => {
+
+        const regularMarkup = visible.map(c => {
           const u = profileCache.get(c.user_id) || {name:'Пользователь',avatar:fallbackAvatar('П')};
           const type = c.comment_type || (c.sticker_id ? 'sticker' : 'text');
           const count = Number(c.likes_count || 0);
@@ -5591,6 +6700,9 @@
           const content = type === 'sticker' && c.sticker_id ? (c.sticker_url ? `<div class="comment-sticker"><img src="${escapeHtml(c.sticker_url)}" alt="Стикер" /></div>` : `<div class="comment-sticker">${stickerSvg(c.sticker_id,74)}</div>`) : `<div class="c-text comment-textual">${escapeHtml(c.text || c.content || '')}</div>`;
           return `<div class="comment-item" data-comment-id="${escapeHtml(c.id)}" data-comment-type="${escapeHtml(type)}" data-sticker-id="${escapeHtml(c.sticker_id || '')}" data-sticker-url="${escapeHtml(c.sticker_url || '')}"><div class="c-avatar comment-author-avatar" data-userid="${escapeHtml(c.user_id || '')}" role="button" tabindex="0" aria-label="Открыть профиль ${escapeHtml(u.name)}"><img src="${escapeHtml(u.avatar)}" alt="" /></div><div class="comment-main"><div class="c-name">${escapeHtml(u.name)}</div>${content}<div class="comment-actions"><button type="button" class="comment-like-btn ${liked?'liked':''}" data-comment-like="${escapeHtml(c.id)}" data-count="${count}" aria-label="Нравится">${icon(liked?'heartFill':'heart',16)} <span>${formatCount(count)}</span></button></div></div></div>`;
         }).join('');
+        const emptyRegular = `<div class="empty-state" style="padding:18px 10px"><div class="icon">${icon('message',30)}</div><div>${visible.length ? '' : 'Пока нет обычных комментариев.'}</div></div>`;
+        const donationsMarkup = renderDonationSection(donationEvents);
+        list.innerHTML = `${donationsMarkup}${visible.length ? regularMarkup : emptyRegular}`;
         hydrateIcons(list);
         list.querySelectorAll('[data-comment-like]').forEach(btn => btn.addEventListener('click', () => toggleCommentLike(btn.dataset.commentLike)));
         list.querySelectorAll('.comment-author-avatar[data-userid]').forEach(avatar => {
@@ -5606,13 +6718,22 @@
     async function sendComment() {
       const user = await requireAuth('оставить комментарий'); if (!user) return;
       const input = document.getElementById('commentInput'); const text = input.value.trim(); if (!text) return;
+      const moderation=moderateCommentText(text);
+      if(!moderation.allowed){ showToast(moderationMessage(moderation.reason)); return; }
       try {
         const { error } = await db.from('comments').insert({ user_id:user.id, video_id:currentCommentsVideoId, text, content:text, comment_type:'text' });
         if (error) throw error;
         input.value = ''; await openComments(currentCommentsVideoId);
         const v=videos.find(x=>x.id===currentCommentsVideoId); if(v){v.comments++; if(v.remote) await refreshVideo(v.id);}
         const card=document.querySelector(`.video-card[data-id="${CSS.escape(currentCommentsVideoId)}"]`); if(card) card.querySelector('.comment-btn .count').textContent=formatCount(v?.comments||0);
-      } catch (error) { console.error(error); showToast('Не удалось отправить комментарий.'); }
+      } catch (error) {
+        console.error(error);
+        const message=String(error?.message||'');
+        if(message.includes('COMMENT_MODERATION')) showToast('Комментарий не опубликован: обнаружена запрещённая формулировка.');
+        else if(message.includes('COMMENTS_DISABLED')) showToast('Автор запретил комментарии к этому видео.');
+        else if(message.includes('FOLLOW_REQUIRED')) showToast('Комментировать это видео могут только подписчики автора.');
+        else showToast('Не удалось отправить комментарий.');
+      }
     }
 
     // ========== INIT ==========
@@ -5628,6 +6749,9 @@
       setupConnections();
       setupSettings();
       setupFeedRefresh();
+      setupDonationRealtime();
+      setupInboxRealtime();
+      handleDonationAlertsReturn();
       document.getElementById('dbStatus').style.display = 'block';
 
       try {
@@ -5645,7 +6769,12 @@
     db.auth.onAuthStateChange((_event, session) => {
       authUser = session?.user || null;
       if (_event === 'PASSWORD_RECOVERY' && session?.user) {
-        setTimeout(() => openPasswordResetModal(), 0);
+        setTimeout(() => {
+          recoveryVerified = true;
+          openPasswordResetModal(session.user.email || '');
+          recoveryVerified = true;
+          setPasswordRecoveryStep(3);
+        }, 0);
       }
       setTimeout(async () => {
         try {
@@ -5659,3 +6788,4 @@
   </script>
 </body>
 </html>
+
