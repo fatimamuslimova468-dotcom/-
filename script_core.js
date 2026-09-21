@@ -58,44 +58,13 @@
       });
     }
 
-    // ========== DEMO FALLBACK DATA ==========
-    const sampleVideos = [
-      "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-      "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
-      "https://uploads.video-commander.com/sample/BigBuckBunny.mp4",
-      "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm"
-    ];
+    let users = [];
 
-    const avatars = [
-      "https://i.pravatar.cc/150?img=1",
-      "https://i.pravatar.cc/150?img=5",
-      "https://i.pravatar.cc/150?img=8",
-      "https://i.pravatar.cc/150?img=11",
-      "https://i.pravatar.cc/150?img=12",
-      "https://i.pravatar.cc/150?img=15",
-      "https://i.pravatar.cc/150?img=20",
-      "https://i.pravatar.cc/150?img=25",
-      "https://i.pravatar.cc/150?img=32",
-      "https://i.pravatar.cc/150?img=33"
-    ];
-
-    const demoUsers = [
-      { id: "demo-1", name: "Анна Козлова", username: "anna_k", avatar: avatars[0], followers: 12400, following: 312, likes: 89000, bio: "Танцы • Путешествия" },
-      { id: "demo-2", name: "Максим Петров", username: "maxp", avatar: avatars[1], followers: 5600, following: 180, likes: 23000, bio: "Геймер и стример" },
-      { id: "demo-3", name: "София Ли", username: "sofiali", avatar: avatars[2], followers: 89000, following: 45, likes: 1200000, bio: "Креатор • Мода" },
-      { id: "demo-4", name: "Игорь Волков", username: "igorv", avatar: avatars[3], followers: 3200, following: 500, likes: 15000, bio: "Музыка каждый день" },
-      { id: "demo-5", name: "Елена Смирнова", username: "elena_s", avatar: avatars[4], followers: 21000, following: 220, likes: 450000, bio: "Кулинария и лайфхаки" },
-      { id: "demo-6", name: "Дмитрий К.", username: "dimak", avatar: avatars[5], followers: 7800, following: 150, likes: 67000, bio: "Спорт • Мотивация" },
-      { id: "demo-7", name: "Мария Иванова", username: "mari_i", avatar: avatars[6], followers: 45000, following: 90, likes: 890000, bio: "Бьюти и стиль" },
-      { id: "demo-8", name: "Алекс Т.", username: "alext", avatar: avatars[7], followers: 1500, following: 400, likes: 8000, bio: "Путешествия по миру" }
-    ];
-
-    let users = [...demoUsers];
     let currentUser = {
       id: null,
       name: "Гость",
       username: "guest",
-      avatar: avatars[8],
+      avatar: fallbackAvatar("Г"),
       followers: 0,
       following: 0,
       likes: 0,
@@ -272,44 +241,6 @@
         thumbnail: safeUrl(row.thumbnail_url || (row.media_type === 'image' ? row.image_url : '')),
         duration: Number(row.duration_seconds ?? row.duration ?? 0)
       };
-    }
-
-    function generateDemoVideos() {
-      const descs = [
-        'Новый день — новые вайбы',
-        'Как вам такой переход?',
-        'Утро начинается с кофе',
-        'Тренировка дня',
-        'Этот звук взорвал интернет',
-        'Путешествие мечты',
-        'Готовлю любимое блюдо',
-        'Закулисье съёмок'
-      ];
-      const tags = ['#fyp', '#viral', '#тренды', '#музыка', '#спорт'];
-      videos = Array.from({length: 8}, (_, i) => {
-        const author = users[i % users.length];
-        return {
-          id: `demo_v${i}`,
-          src: sampleVideos[i % sampleVideos.length],
-          mediaType: 'video',
-          author,
-          authorId: author.id,
-          desc: descs[i % descs.length],
-          hashtags: tags.slice(0, 2 + (i % 3)).join(' '),
-          likes: 2400 + i * 311,
-          comments: 80 + i * 9,
-          shares: 20 + i * 5,
-          views: 12000 + i * 1600,
-          liked: false,
-          subscribed: false,
-          favorited: false,
-          isMine: false,
-          remote: false,
-          music: 'Оригинальный звук',
-          title: 'Демо-видео',
-          duration: 10
-        };
-      });
     }
 
     function isRemoteVideo(v) {

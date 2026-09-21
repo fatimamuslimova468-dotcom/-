@@ -300,14 +300,17 @@
     async function loadSavedStickers() {
       customStickers.clear();
       if (!authUser) return;
-      const { data, error } = await db.from('saved_stickers').select('sticker_id,sticker_url').eq('user_id', authUser.id).order('created_at', { ascending: true });
+      const { data, error } = await db.from('saved_stickers').select('sticker_id').eq('user_id', authUser.id).order('created_at', { ascending: true });
       if (error) { console.warn('saved stickers load', error); return; }
       (data || []).forEach(row => {
-        if (!row.sticker_id) return;
-        const url = row.sticker_url || stickerDataUrl(row.sticker_id);
+        const storedId = String(row.sticker_id || '');
+        if (!storedId) return;
+        const isStoredUrl = storedId.startsWith('url:');
+        const stickerId = isStoredUrl ? storedId : storedId;
+        const url = isStoredUrl ? safeUrl(storedId.slice(4)) : stickerDataUrl(stickerId);
         if (!url) return;
-        const builtIn = stickerById(row.sticker_id);
-        customStickers.set(row.sticker_id, { url, name: builtIn?.name || 'Мой стикер' });
+        const builtIn = stickerById(stickerId);
+        customStickers.set(stickerId, { url, name: builtIn?.name || 'Мой стикер' });
       });
     }
 
@@ -350,7 +353,7 @@
         followingIds.clear();
         friendIds.clear();
         currentUser = {
-          id: null, name: 'Гость', username: 'guest', avatar: avatars[8], followers: 0, following: 0, likes: 0,
+          id: null, name: 'Гость', username: 'guest', avatar: fallbackAvatar('Г'), followers: 0, following: 0, likes: 0,
           bio: 'Войдите, чтобы публиковать и взаимодействовать с видео', donationUsername:'', donationEnabled:false, donationConnected:false
         };
       }
@@ -482,7 +485,6 @@
         }
 
         users = [...profileCache.values()].filter(u => userIds.includes(u.id));
-        if (!users.length) users = [...demoUsers];
 
         const mapped = rows.map(normalizeVideo).filter(videoAllowedBySettings);
 
@@ -525,16 +527,20 @@
         videos = visibleMapped;
         remoteLoaded = true;
         setDbStatus(authUser ? `Supabase · ${currentUser.username}` : 'Supabase · публичный режим', true);
-        if (!videos.length) generateDemoVideos();
         renderFeed({ reshuffle: true });
         renderSearchSuggestions();
         if (currentProfile) renderProfileGrid('videos');
       } catch (error) {
-        console.error('Supabase load error:', error);
-        setDbStatus('Supabase · резервный режим');
-        if (!videos.length) generateDemoVideos();
+        remoteLoaded = false;
+        videos = [];
+        users = [];
+        const details = [error?.code, error?.message, error?.hint].filter(Boolean).join(' · ');
+        console.error('Supabase load error:', { code: error?.code, message: error?.message, details: error?.details, hint: error?.hint });
+        setDbStatus('Supabase · ошибка загрузки');
         renderFeed();
-        showToast('База временно недоступна — включён резервный режим.');
+        renderSearchSuggestions();
+        if (currentProfile) renderProfileGrid('videos');
+        showToast(details ? `Не удалось загрузить данные: ${details}` : 'Не удалось загрузить данные из Supabase.');
       }
     }
 

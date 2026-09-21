@@ -303,6 +303,11 @@
         }
       }
 
+      if (!list.length) {
+        container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;flex-direction:column;justify-content:center;"><div class="icon">${icon('play',48)}</div><div>Пока нет опубликованных видео.</div><div style="margin-top:8px;font-size:12px;color:var(--text-muted);max-width:320px;text-align:center">Здесь появятся видео после публикации через Supabase.</div></div>`;
+        return;
+      }
+
       list.forEach((v, index) => {
         const card = document.createElement('div');
         card.className = 'video-card';

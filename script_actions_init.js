@@ -504,9 +504,10 @@
         if(upload.error) throw upload.error;
         const url=db.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
         const name=(file.name||'Мой стикер').replace(/\.[^.]+$/,'').slice(0,40);
-        const {error}=await db.from('saved_stickers').upsert({user_id:user.id,sticker_id:id,sticker_url:url},{onConflict:'user_id,sticker_id'});
+        const storedId=`url:${url}`;
+        const {error}=await db.from('saved_stickers').upsert({user_id:user.id,sticker_id:storedId},{onConflict:'user_id,sticker_id'});
         if(error) throw error;
-        customStickers.set(id,{url,name,path});
+        customStickers.set(storedId,{url,name,path});
         renderStickerPicker('stickers');
         showToast('Стикер добавлен.');
       }catch(error){ console.error(error); showToast('Не удалось добавить стикер.'); }
@@ -552,7 +553,7 @@
     }
     async function saveCurrentSticker(){
       const user=await requireAuth('сохранить стикер'); if(!user||!currentCommentContextStickerId)return;
-      try{ const url=currentCommentContextStickerUrl || customStickerUrl(currentCommentContextStickerId) || stickerDataUrl(currentCommentContextStickerId); if(!url) throw new Error('У стикера нет изображения'); const {error}=await db.from('saved_stickers').upsert({user_id:user.id,sticker_id:currentCommentContextStickerId,sticker_url:url},{onConflict:'user_id,sticker_id'}); if(error)throw error; customStickers.set(currentCommentContextStickerId,{url,name:stickerById(currentCommentContextStickerId)?.name || 'Сохранённый стикер'}); closeCommentContext(); showToast('Стикер сохранён.'); }
+      try{ const url=currentCommentContextStickerUrl || customStickerUrl(currentCommentContextStickerId) || stickerDataUrl(currentCommentContextStickerId); if(!url) throw new Error('У стикера нет изображения'); const rawId=String(currentCommentContextStickerId||''); const storedId=stickerById(rawId) ? rawId : (rawId.startsWith('url:') ? rawId : `url:${url}`); const {error}=await db.from('saved_stickers').upsert({user_id:user.id,sticker_id:storedId},{onConflict:'user_id,sticker_id'}); if(error)throw error; customStickers.set(storedId,{url,name:stickerById(rawId)?.name || 'Сохранённый стикер'}); closeCommentContext(); showToast('Стикер сохранён.'); }
       catch(error){ console.error(error); showToast('Не удалось сохранить стикер.'); }
     }
     async function toggleCommentLike(commentId){
@@ -1104,10 +1105,13 @@
         await refreshAuthState();
         await loadRemoteData();
       } catch (e) {
-        console.error('Init error:', e);
-        generateDemoVideos();
+        remoteLoaded = false;
+        videos = [];
+        users = [];
+        console.error('Init error:', { code: e?.code, message: e?.message, details: e?.details, hint: e?.hint });
         renderFeed();
-        setDbStatus('Supabase · резервный режим');
+        setDbStatus('Supabase · ошибка загрузки');
+        showToast(e?.message ? `Supabase: ${e.message}` : 'Не удалось запустить приложение.');
       }
     }
 
