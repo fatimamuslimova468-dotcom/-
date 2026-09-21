@@ -636,6 +636,32 @@
       color: var(--accent);
     }
 
+    .video-sound-btn {
+      position: absolute;
+      top: calc(var(--top-h) + var(--safe-top) + 8px);
+      right: 12px;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 50%;
+      background: rgba(0,0,0,.42);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 12;
+      pointer-events: auto;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.22);
+      transition: transform .15s ease, background .18s ease, opacity .18s ease;
+    }
+
+    .video-sound-btn:active { transform: scale(.9); }
+    .video-sound-btn:hover { background: rgba(0,0,0,.58); }
+    .video-sound-btn svg { width: 21px; height: 21px; }
+
     .side-action .count {
       font-size: 12px;
       font-weight: 600;
@@ -834,7 +860,16 @@
       -webkit-overflow-scrolling: touch;
     }
 
-    .profile-settings-btn { position:absolute; top:calc(var(--safe-top) + 12px); right:12px; width:38px; height:38px; border-radius:50%; border:1px solid rgba(255,255,255,.08); background:rgba(0,0,0,.35); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .profile-settings-btn {
+      position:absolute; top:calc(var(--safe-top) + 10px); right:12px;
+      width:42px; height:42px; border-radius:50%;
+      border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.42); color:#fff;
+      display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:15;
+      backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+      box-shadow:0 8px 24px rgba(0,0,0,.22);
+    }
+    .profile-settings-btn:active { transform:scale(.92); }
+    body.light-theme .profile-settings-btn { background:rgba(255,255,255,.82); color:#161616; border-color:rgba(0,0,0,.1); }
     .profile-header {
       position: relative;
       padding: calc(var(--top-h) + var(--safe-top) + 8px) 16px 16px;
@@ -2580,10 +2615,6 @@
         <div class="icon" data-icon="user"></div>
         <div>Профиль</div>
       </div>
-      <div class="btn settings-nav-btn" data-screen="settings">
-        <div class="icon" data-icon="settings"></div>
-        <div>Настройки</div>
-      </div>
     </div>
 
     <!-- Modals -->
@@ -2839,6 +2870,8 @@
       share: '<path d="m14 5 5 5-5 5"/><path d="M19 10h-8a6 6 0 0 0-6 6v2"/>',
       more: '<circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/>',
       settings: '<path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/>',
+      volume: '<path d="M5 10v4h3l4 3V7l-4 3H5Z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18 7a7 7 0 0 1 0 10"/>',
+      volumeOff: '<path d="M5 10v4h3l4 3V7l-4 3H5Z"/><path d="m17 9 4 6m0-6-4 6"/>',
       bookmark: '<path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3-6 3Z"/>',
       bookmarkFill: '<path d="M7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3-6 3V4.5A1.5 1.5 0 0 1 7.5 3Z" fill="currentColor" stroke="currentColor"/>',
       flag: '<path d="M5 21V4"/><path d="M5 5c4-3 7 2 13-1v8c-6 3-9-2-13 1"/>',
@@ -3649,7 +3682,6 @@
             showScreen('profile');
             openProfile(currentProfile?.id || null);
           }
-          else if (screen === 'settings') openSettings();
           else showScreen(screen);
         });
       });
@@ -3801,6 +3833,42 @@
       }, {passive:true});
     }
 
+    let feedSoundEnabled = (() => {
+      try { return localStorage.getItem('smotriuFeedSound') === '1'; } catch (_) { return false; }
+    })();
+
+    function persistFeedSound() {
+      try { localStorage.setItem('smotriuFeedSound', feedSoundEnabled ? '1' : '0'); } catch (_) {}
+    }
+
+    function setVideoSound(video, enabled) {
+      if (!video) return;
+      video.muted = !enabled;
+      video.volume = enabled ? 1 : 0;
+      const button = video.closest('.video-card')?.querySelector('.video-sound-btn');
+      if (button) {
+        button.innerHTML = icon(enabled ? 'volume' : 'volumeOff', 21);
+        button.setAttribute('aria-label', enabled ? 'Выключить звук' : 'Включить звук');
+        button.setAttribute('title', enabled ? 'Выключить звук' : 'Включить звук');
+      }
+    }
+
+    function toggleVideoSound(card) {
+      const video = card?.querySelector('video');
+      if (!video) return;
+      feedSoundEnabled = !feedSoundEnabled;
+      persistFeedSound();
+      document.querySelectorAll('#feedContainer .video-card video').forEach(v => setVideoSound(v, feedSoundEnabled));
+      if (feedSoundEnabled) {
+        const playPromise = video.paused ? video.play() : Promise.resolve();
+        if (playPromise?.catch) playPromise.catch(() => {});
+      }
+    }
+
+    function applyFeedSoundState(root = document) {
+      root.querySelectorAll('#feedContainer .video-card video').forEach(video => setVideoSound(video, feedSoundEnabled));
+    }
+
     function renderFeed(options = {}) {
       const container = document.getElementById('feedContainer');
       if (!container) return;
@@ -3834,7 +3902,7 @@
           : `<div class="video-cover" aria-hidden="true"></div>`;
         const media = v.mediaType === 'image'
           ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
-          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video src="${source}" loop muted playsinline ${userSettings.autoplay ? 'autoplay' : ''} preload="${userSettings.data_saver ? 'metadata' : 'auto'}" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
+          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video src="${source}" loop ${!feedSoundEnabled ? 'muted' : ''} playsinline ${userSettings.autoplay ? 'autoplay' : ''} preload="${userSettings.data_saver ? 'metadata' : 'auto'}" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
         const saveBadge = v.favorited ? ' saved' : '';
         card.innerHTML = `
@@ -3844,7 +3912,8 @@
             <button class="subscribe-btn ${v.subscribed ? 'subscribed' : ''}" data-id="${escapeHtml(v.id)}" ${v.isMine ? 'disabled' : ''}>
               ${v.subscribed ? `${icon('check',14)} Подписан` : `${icon('userPlus',14)} Подписаться`}
             </button>
-            <div class="side-actions">
+            <button class="video-sound-btn" type="button" aria-label="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}" title="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}">${icon(feedSoundEnabled ? 'volume' : 'volumeOff',21)}</button>
+           <div class="side-actions">
               <div class="side-action author-avatar" data-userid="${escapeHtml(v.author.id)}">
                 <div class="avatar-wrap">
                   <img src="${authorAvatar}" alt="" />
@@ -3880,9 +3949,17 @@
 
       setupMediaLoading(container);
       hydrateIcons(container);
+      applyFeedSoundState(container);
       applyPlaybackSettings();
 
       container.onclick = async (e) => {
+        const soundButton = e.target.closest('.video-sound-btn');
+        if (soundButton) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleVideoSound(soundButton.closest('.video-card'));
+          return;
+        }
         const target = e.target.closest('[data-id], [data-userid], .subscribe-btn, .like-btn, .comment-btn, .share-btn, .more-btn, .author, .author-avatar');
         if (!target) return;
         if (target.classList.contains('subscribe-btn') || target.closest('.subscribe-btn')) {
@@ -4277,7 +4354,7 @@
       const likesCount = Number(user.likes || 0);
       header.innerHTML = `
         <div class="profile-back" onclick="showScreen('feed')" aria-label="Назад">${icon('back',20)}</div>
-        ${!isMe ? `<button class="profile-settings-btn" id="profileSettingsBtn" type="button" aria-label="Настройки">${icon('settings',19)}</button>` : ''}
+        ${isMe ? `<button class="profile-settings-btn" id="profileSettingsBtn" type="button" aria-label="Настройки" title="Настройки">${icon('settings',20)}</button>` : ''}
         <div class="profile-top">
           <div class="profile-avatar"><img src="${escapeHtml(user.avatar)}" alt="" /></div>
         </div>
@@ -4665,6 +4742,7 @@
     }
 
     function applyPlaybackSettings(){
+      applyFeedSoundState();
       document.querySelectorAll('#feedContainer video').forEach(v=>{
         v.autoplay = !!userSettings.autoplay;
         v.preload = userSettings.data_saver ? 'metadata' : 'auto';
