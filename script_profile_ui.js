@@ -12,7 +12,7 @@
       if (key) {
         try {
           const { data, error } = await db.from('profiles')
-            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role')
+            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected')
             .eq('id', key)
             .maybeSingle();
           if (!error && data) {

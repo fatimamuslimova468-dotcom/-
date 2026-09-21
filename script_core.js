@@ -198,11 +198,7 @@
         donationUsername: profile.donationalerts_username || '',
         donationEnabled: Boolean(profile.donationalerts_enabled),
         donationConnected: Boolean(profile.donationalerts_connected),
-        profileEditLastAt: profile.profile_edit_last_at || null,
-        role: profile.role || 'user',
-        isBanned: Boolean(profile.is_banned),
-        banReason: profile.ban_reason || '',
-        warningCount: Number(profile.warning_count || 0)
+        profileEditLastAt: profile.profile_edit_last_at || null
       };
     }
 

@@ -53,13 +53,6 @@
         }
         authUser = result.data.user || result.data.session?.user || null;
         await ensureCurrentProfile();
-        if (currentUser?.isBanned) {
-          const reason = currentUser.banReason ? ` Причина: ${currentUser.banReason}` : '';
-          await db.auth.signOut();
-          authUser = null;
-          await refreshAuthState();
-          throw new Error(`Ваш аккаунт заблокирован.${reason}`);
-        }
         await loadRemoteData();
         closeModals();
         showToast('Вы вошли в аккаунт.');
@@ -351,23 +344,7 @@
       const { data } = await db.auth.getSession();
       authUser = data?.session?.user || null;
       if (authUser) {
-        try {
-          await ensureCurrentProfile();
-          if (currentUser?.isBanned) {
-            const reason = currentUser.banReason ? ` Причина: ${currentUser.banReason}` : '';
-            await db.auth.signOut();
-            authUser = null;
-            customStickers.clear();
-            followingIds.clear();
-            friendIds.clear();
-            currentUser = { id:null, name:'Гость', username:'guest', avatar:avatars[8], followers:0, following:0, likes:0, bio:'Аккаунт заблокирован', donationUsername:'', donationEnabled:false, donationConnected:false };
-            updateAuthUi();
-            showToast(`Аккаунт заблокирован.${reason}`);
-          } else {
-            await loadSavedStickers();
-            await loadUserSettings();
-          }
-        } catch (e) { console.warn('profile init', e); }
+        try { await ensureCurrentProfile(); await loadSavedStickers(); await loadUserSettings(); } catch (e) { console.warn('profile init', e); }
       } else {
         customStickers.clear();
         followingIds.clear();
@@ -484,9 +461,8 @@
       setDbStatus(options.force ? 'Обновление ленты…' : 'Загрузка данных…');
       try {
         const videoResult = await db.from('videos')
-          .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username,is_blocked')
+          .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username')
           .eq('status', 'published')
-          .eq('is_blocked', false)
           .eq('visibility', 'public')
           .order('created_at', { ascending: false })
           .limit(60);
@@ -496,7 +472,7 @@
         const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
         if (userIds.length) {
           const profileResult = await db.from('profiles')
-            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role')
+            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,donationalerts_username,donationalerts_enabled,donationalerts_connected')
             .in('id', userIds);
           if (profileResult.error) throw profileResult.error;
           (profileResult.data || []).forEach(p => {
@@ -508,7 +484,7 @@
         users = [...profileCache.values()].filter(u => userIds.includes(u.id));
         if (!users.length) users = [...demoUsers];
 
-        const mapped = rows.map(normalizeVideo).filter(videoAllowedBySettings).filter(v => !profileCache.get(v.authorId)?.isBanned);
+        const mapped = rows.map(normalizeVideo).filter(videoAllowedBySettings);
 
         if (authUser) {
           const [subResult, likeResult, saveResult] = await Promise.all([
