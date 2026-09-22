@@ -129,6 +129,12 @@
               <label>Описание</label>
               <textarea id="pubDesc" placeholder="Напишите описание..." maxlength="2200"></textarea>
             </div>
+            <div class="field music-pick-field">
+              <label>Музыка · хиты 2021</label>
+              <input type="text" id="pubMusic" list="music2021List" placeholder="Выберите или найдите трек" autocomplete="off" />
+              <datalist id="music2021List"></datalist>
+              <div class="music-pick-hint">200 русскоязычных треков из подборок и чартов 2021. Аудиофайл не копируется в проект.</div>
+            </div>
             <div class="field">
               <label>Хэштеги</label>
               <input type="text" id="pubTags" placeholder="#музыка #тренды" />

@@ -162,6 +162,24 @@
       border: 2px solid #fff;
     }
 
+    .bottom-nav .btn.create.press-animation {
+      animation: createButtonPulse .42s cubic-bezier(.2,.8,.25,1);
+    }
+    .bottom-nav .btn.create.press-animation .icon {
+      animation: createIconPop .42s cubic-bezier(.2,.8,.25,1);
+    }
+    @keyframes createButtonPulse {
+      0% { transform: scale(1); }
+      38% { transform: scale(.90); }
+      72% { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+    @keyframes createIconPop {
+      0% { transform: rotate(0deg) scale(1); }
+      45% { transform: rotate(-7deg) scale(1.16); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
+
 
     /* ========== GLOBAL MOTION ========== */
     html { scroll-behavior: smooth; }

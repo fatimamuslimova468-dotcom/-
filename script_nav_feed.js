@@ -89,7 +89,13 @@
       document.querySelectorAll('.bottom-nav .btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const screen = btn.dataset.screen;
-          if (screen === 'create') showScreen('create');
+          if (screen === 'create') {
+            btn.classList.remove('press-animation');
+            void btn.offsetWidth;
+            btn.classList.add('press-animation');
+            setTimeout(() => btn.classList.remove('press-animation'), 460);
+            showScreen('create');
+          }
           else if (screen === 'feed') { currentFeedTab = 'foryou'; updateTopTabs(); showScreen('feed'); renderFeed(); }
           else if (screen === 'profile') {
             currentProfile = authUser ? currentUser : currentUser;
@@ -289,6 +295,10 @@
       const reshuffle = options.reshuffle !== false;
       container.innerHTML = '';
       let list = reshuffle ? shuffleArray(videos) : [...videos];
+      if (currentFeedTab !== 'following' && currentFeedTab !== 'friends' && !list.length) {
+        container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;"><div class="icon">${icon('play',52)}</div><div style="font-size:17px;font-weight:800;margin-top:10px;">Пока нет опубликованных видео</div><div style="opacity:.62;font-size:13px;margin-top:6px;max-width:280px;">Опубликуйте первое видео — оно появится здесь после загрузки в Supabase.</div></div>`;
+        return;
+      }
       if (currentFeedTab === 'following') {
         list = authUser ? list.filter(v => followingIds.has(v.authorId)) : [];
         if (!list.length) {
@@ -303,11 +313,6 @@
         }
       }
 
-      if (!list.length) {
-        container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;flex-direction:column;justify-content:center;"><div class="icon">${icon('play',48)}</div><div>Пока нет опубликованных видео.</div><div style="margin-top:8px;font-size:12px;color:var(--text-muted);max-width:320px;text-align:center">Здесь появятся видео после публикации через Supabase.</div></div>`;
-        return;
-      }
-
       list.forEach((v, index) => {
         const card = document.createElement('div');
         card.className = 'video-card';
@@ -317,11 +322,11 @@
         const authorAvatar = escapeHtml(v.author.avatar || fallbackAvatar(v.author.name));
         const poster = v.thumbnail ? ` poster="${escapeHtml(v.thumbnail)}"` : '';
         const videoCover = v.thumbnail
-          ? `<div class="video-cover"><img src="${escapeHtml(v.thumbnail)}" alt="" /></div>`
+          ? `<div class="video-cover"><img src="${escapeHtml(v.thumbnail)}" alt="" loading="lazy" decoding="async" /></div>`
           : `<div class="video-cover" aria-hidden="true"></div>`;
         const media = v.mediaType === 'image'
           ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
-          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video src="${source}" loop ${!feedSoundEnabled ? 'muted' : ''} playsinline ${userSettings.autoplay ? 'autoplay' : ''} preload="${userSettings.data_saver ? 'metadata' : 'auto'}" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
+          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video src="${source}" loop ${!feedSoundEnabled ? 'muted' : ''} playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
         const saveBadge = v.favorited ? ' saved' : '';
         card.innerHTML = `
@@ -335,7 +340,7 @@
            <div class="side-actions">
               <div class="side-action author-avatar" data-userid="${escapeHtml(v.author.id)}">
                 <div class="avatar-wrap">
-                  <img src="${authorAvatar}" alt="" />
+                  <img src="${authorAvatar}" alt="" loading="lazy" decoding="async" />
                   ${!v.subscribed && !v.isMine ? `<div class="avatar-follow">${icon('plus',12)}</div>` : ''}
                 </div>
               </div>
@@ -443,9 +448,15 @@
       }, { threshold: [0.6] });
       container.querySelectorAll('.video-card').forEach(card => feedObserver.observe(card));
 
+      // renderFeed() can run many times. Replace the old gesture handler instead of
+      // stacking another listener on every render. Stacked listeners caused taps to
+      // trigger multiple likes/pauses after repeated navigation or refreshes.
+      if (container._feedTapHandler) {
+        container.removeEventListener('click', container._feedTapHandler);
+      }
       let lastTap = 0;
       let tapTimer = null;
-      container.addEventListener('click', e => {
+      const feedTapHandler = e => {
         if (e.target.closest('.side-actions, .subscribe-btn, .video-info, button, a')) return;
         const card = e.target.closest('.video-card');
         if (!card) return;
@@ -466,7 +477,9 @@
           tapTimer = null;
           lastTap = 0;
         }, 170);
-      });
+      };
+      container._feedTapHandler = feedTapHandler;
+      container.addEventListener('click', feedTapHandler);
     }
 
     function toggleVideoPause(card) {
@@ -504,14 +517,26 @@
       if (viewedVideos.has(videoId) || !isRemoteVideo(videos.find(v => v.id === videoId))) return;
       viewedVideos.add(videoId);
       try {
-        if (authUser) await db.rpc('record_video_view', { p_video_id: videoId, p_session_id: getSessionId() });
-        else await db.from('views').insert({ video_id: videoId, user_id: null, watched_seconds: 0, completed: false });
-      } catch (_) {}
+        if (authUser) {
+          await db.rpc('record_video_view', { p_video_id: videoId, p_session_id: getSessionId() });
+        } else {
+          await db.from('views').insert({ video_id: videoId, user_id: null, watched_seconds: 0, completed: false });
+        }
+      } catch (error) {
+        // Повторная запись просмотра с тем же session_id — ожидаемая ситуация,
+        // не показываем её пользователю и не засоряем консоль.
+      }
     }
 
     function getSessionId() {
-      let id = localStorage.getItem('videoPlatformSessionId');
-      if (!id) { id = crypto.randomUUID(); localStorage.setItem('videoPlatformSessionId', id); }
+      // ID должен жить только в рамках текущей вкладки. Это предотвращает
+      // 409 Conflict после перезагрузки, когда сервер уже записал просмотр
+      // для старого persistent session_id.
+      let id = sessionStorage.getItem('videoPlatformSessionId');
+      if (!id) {
+        id = crypto.randomUUID();
+        sessionStorage.setItem('videoPlatformSessionId', id);
+      }
       return id;
     }
 

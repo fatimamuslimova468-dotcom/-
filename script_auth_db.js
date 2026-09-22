@@ -53,6 +53,13 @@
         }
         authUser = result.data.user || result.data.session?.user || null;
         await ensureCurrentProfile();
+        if (currentUser?.isBanned) {
+          const reason = currentUser.banReason ? ` Причина: ${currentUser.banReason}` : '';
+          await db.auth.signOut();
+          authUser = null;
+          await refreshAuthState();
+          throw new Error(`Ваш аккаунт заблокирован.${reason}`);
+        }
         await loadRemoteData();
         closeModals();
         showToast('Вы вошли в аккаунт.');
@@ -300,17 +307,45 @@
     async function loadSavedStickers() {
       customStickers.clear();
       if (!authUser) return;
-      const { data, error } = await db.from('saved_stickers').select('sticker_id').eq('user_id', authUser.id).order('created_at', { ascending: true });
-      if (error) { console.warn('saved stickers load', error); return; }
+
+      // The current database can have saved_stickers without sticker_url.
+      // Store URLs for custom stickers locally and only read sticker_id from Supabase.
+      const { data, error } = await db.from('saved_stickers')
+        .select('sticker_id')
+        .eq('user_id', authUser.id)
+        .order('created_at', { ascending: true });
+
+      let local = [];
+      try {
+        local = JSON.parse(localStorage.getItem(`smotry_custom_stickers_${authUser.id}`) || '[]');
+      } catch (_) {}
+
+      const localById = new Map((local || [])
+        .filter(row => row?.sticker_id && row?.sticker_url)
+        .map(row => [String(row.sticker_id), row]));
+
+      if (error) {
+        console.warn('saved stickers load:', error.message || error);
+        localById.forEach(row => customStickers.set(String(row.sticker_id), {
+          url: row.sticker_url,
+          name: row.name || 'Мой стикер',
+          path: row.path || ''
+        }));
+        return;
+      }
+
       (data || []).forEach(row => {
-        const storedId = String(row.sticker_id || '');
-        if (!storedId) return;
-        const isStoredUrl = storedId.startsWith('url:');
-        const stickerId = isStoredUrl ? storedId : storedId;
-        const url = isStoredUrl ? safeUrl(storedId.slice(4)) : stickerDataUrl(stickerId);
+        if (!row?.sticker_id) return;
+        const id = String(row.sticker_id);
+        const localRow = localById.get(id);
+        const url = localRow?.sticker_url || stickerDataUrl(id);
         if (!url) return;
-        const builtIn = stickerById(stickerId);
-        customStickers.set(stickerId, { url, name: builtIn?.name || 'Мой стикер' });
+        const builtIn = stickerById(id);
+        customStickers.set(id, {
+          url,
+          name: localRow?.name || builtIn?.name || 'Сохранённый стикер',
+          path: localRow?.path || ''
+        });
       });
     }
 
@@ -347,13 +382,29 @@
       const { data } = await db.auth.getSession();
       authUser = data?.session?.user || null;
       if (authUser) {
-        try { await ensureCurrentProfile(); await loadSavedStickers(); await loadUserSettings(); } catch (e) { console.warn('profile init', e); }
+        try {
+          await ensureCurrentProfile();
+          if (currentUser?.isBanned) {
+            const reason = currentUser.banReason ? ` Причина: ${currentUser.banReason}` : '';
+            await db.auth.signOut();
+            authUser = null;
+            customStickers.clear();
+            followingIds.clear();
+            friendIds.clear();
+            currentUser = { id:null, name:'Гость', username:'guest', avatar:avatars[8], followers:0, following:0, likes:0, bio:'Аккаунт заблокирован', donationUsername:'', donationEnabled:false, donationConnected:false };
+            updateAuthUi();
+            showToast(`Аккаунт заблокирован.${reason}`);
+          } else {
+            await loadSavedStickers();
+            await loadUserSettings();
+          }
+        } catch (e) { console.warn('profile init', e); }
       } else {
         customStickers.clear();
         followingIds.clear();
         friendIds.clear();
         currentUser = {
-          id: null, name: 'Гость', username: 'guest', avatar: fallbackAvatar('Г'), followers: 0, following: 0, likes: 0,
+          id: null, name: 'Гость', username: 'guest', avatar: avatars[8], followers: 0, following: 0, likes: 0,
           bio: 'Войдите, чтобы публиковать и взаимодействовать с видео', donationUsername:'', donationEnabled:false, donationConnected:false
         };
       }
@@ -460,7 +511,7 @@
       return !hidden.some(word=>hay.includes(word));
     }
 
-    async function loadRemoteData(options = {}) {
+    async function _loadRemoteData(options = {}) {
       setDbStatus(options.force ? 'Обновление ленты…' : 'Загрузка данных…');
       try {
         const videoResult = await db.from('videos')
@@ -468,14 +519,14 @@
           .eq('status', 'published')
           .eq('visibility', 'public')
           .order('created_at', { ascending: false })
-          .limit(60);
+          .limit(36);
         if (videoResult.error) throw videoResult.error;
 
         const rows = videoResult.data || [];
         const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
         if (userIds.length) {
           const profileResult = await db.from('profiles')
-            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,donationalerts_username,donationalerts_enabled,donationalerts_connected')
+            .select('*')
             .in('id', userIds);
           if (profileResult.error) throw profileResult.error;
           (profileResult.data || []).forEach(p => {
@@ -486,7 +537,7 @@
 
         users = [...profileCache.values()].filter(u => userIds.includes(u.id));
 
-        const mapped = rows.map(normalizeVideo).filter(videoAllowedBySettings);
+        const mapped = rows.map(normalizeVideo).filter(videoAllowedBySettings).filter(v => !profileCache.get(v.authorId)?.isBanned);
 
         if (authUser) {
           const [subResult, likeResult, saveResult] = await Promise.all([
@@ -531,17 +582,20 @@
         renderSearchSuggestions();
         if (currentProfile) renderProfileGrid('videos');
       } catch (error) {
-        remoteLoaded = false;
+        console.error('Supabase load error:', error);
         videos = [];
-        users = [];
-        const details = [error?.code, error?.message, error?.hint].filter(Boolean).join(' · ');
-        console.error('Supabase load error:', { code: error?.code, message: error?.message, details: error?.details, hint: error?.hint });
         setDbStatus('Supabase · ошибка загрузки');
         renderFeed();
-        renderSearchSuggestions();
-        if (currentProfile) renderProfileGrid('videos');
-        showToast(details ? `Не удалось загрузить данные: ${details}` : 'Не удалось загрузить данные из Supabase.');
+        showToast('Не удалось загрузить данные из Supabase.');
       }
+    }
+
+    // Prevent duplicate Supabase loads when init() and onAuthStateChange() fire together.
+    let remoteLoadPromise = null;
+    async function loadRemoteData(options = {}) {
+      if (remoteLoadPromise) return remoteLoadPromise;
+      remoteLoadPromise = _loadRemoteData(options).finally(() => { remoteLoadPromise = null; });
+      return remoteLoadPromise;
     }
 
     async function refreshVideo(id) {

@@ -1,9 +1,18 @@
     // ========== RECORD / CREATE ==========
+    function populateMusicCatalog() {
+      const list = document.getElementById('music2021List');
+      if (!list || list.dataset.ready) return;
+      list.innerHTML = MUSIC_2021_CATALOG.map(item => `<option value="${escapeHtml(item.artist + ' — ' + item.title)}">${escapeHtml(item.title)} — ${escapeHtml(item.artist)}</option>`).join('');
+      list.dataset.ready = '1';
+    }
+
     function setupRecord() {
+      populateMusicCatalog();
       document.getElementById('recordBtn').addEventListener('click', toggleRecord);
       document.getElementById('galleryBtn').addEventListener('click', () => document.getElementById('galleryInput').click());
       document.getElementById('galleryInput').addEventListener('change', handleGallery);
       document.getElementById('nextBtn').addEventListener('click', goToPublish);
+      document.getElementById('publishBtn').addEventListener('click', publishVideo);
       document.getElementById('flipBtn').addEventListener('click', switchCamera);
       document.getElementById('enableCameraBtn').addEventListener('click', startCamera);
       document.getElementById('enableCameraBottomBtn').addEventListener('click', startCamera);
@@ -84,15 +93,20 @@
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: currentCameraFacingMode },
-            width: { ideal: 720, max: 1080 },
-            height: { ideal: 1280, max: 1920 },
-            aspectRatio: { ideal: 9 / 16 }
+            width: { ideal: 1080, min: 640 },
+            height: { ideal: 1920, min: 480 },
+            resizeMode: 'none'
           },
           audio: true
         });
         video.srcObject = mediaStream;
-        video.src = '';
+        video.removeAttribute('src');
+        video.setAttribute('playsinline', '');
+        video.muted = true;
+        video.autoplay = true;
         video.style.display = 'block';
+        video.style.objectFit = 'cover';
+        video.style.objectPosition = 'center center';
         readCameraZoomCapabilities(getActiveCameraTrack());
         resetCameraTransform();
         placeholder.style.display = 'none';
@@ -320,7 +334,11 @@
 
     async function publishVideo() {
       const user = await requireAuth('опубликовать видео');
-      if (!user || !pendingVideoBlob) return;
+      if (!user) return;
+      if (!pendingVideoBlob) {
+        showToast('Сначала запишите видео или выберите файл из галереи.');
+        return;
+      }
       const desc = document.getElementById('pubDesc').value.trim() || 'Новое видео';
       const tagsText = document.getElementById('pubTags').value.trim() || '#fyp';
       const tags = parseTags(tagsText);
@@ -349,7 +367,8 @@
       try {
         const file = pendingVideoBlob;
         const ext = (file.name?.split('.').pop() || (file.type.includes('image') ? 'jpg' : 'webm')).toLowerCase();
-        const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+        const fileId = (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        const path = `${user.id}/${fileId}.${ext}`;
         const contentType = file.type || (ext === 'mp4' ? 'video/mp4' : 'video/webm');
         const upload = await db.storage.from(STORAGE_BUCKET).upload(path, file, { contentType, upsert: false, cacheControl: '3600' });
         if (upload.error) throw upload.error;
@@ -401,24 +420,21 @@
           image_url: isImage ? publicUrl : null,
           thumbnail_url: thumbnailUrl,
           title: desc.slice(0, 80) || 'Без названия',
-          sound: 'Оригинальный звук',
-          sound_name: 'Оригинальный звук',
+          sound: document.getElementById('pubMusic')?.value.trim() || 'Оригинальный звук',
+          sound_name: document.getElementById('pubMusic')?.value.trim() || 'Оригинальный звук',
           username: currentUser.username,
           status: 'published',
-          privacy: 'public',
           visibility: 'public',
           is_published: true,
           duration_seconds: duration,
           duration,
-          size_bytes: file.size,
           likes: 0,
           views: 0,
           shares: 0,
           likes_count: 0,
           views_count: 0,
           shares_count: 0,
-          comments_count: 0,
-          saves_count: 0
+          comments_count: 0
         };
         const created = await db.from('videos').insert(insertPayload).select('*').single();
         if (created.error) throw created.error;
@@ -426,6 +442,8 @@
         await loadRemoteData();
         showScreen('feed');
         currentFeedTab = 'foryou'; updateTopTabs(); renderFeed();
+        btn.classList.add('publish-success');
+        setTimeout(() => btn.classList.remove('publish-success'), 650);
         toast.classList.remove('visible');
         resetPublishForm();
         showToast('Видео опубликовано.');
@@ -448,6 +466,8 @@
       pendingCoverBlob = null; pendingCoverUrl = null;
       document.getElementById('pubDesc').value = '';
       document.getElementById('pubTags').value = '';
+      const musicInput = document.getElementById('pubMusic');
+      if (musicInput) musicInput.value = '';
       document.getElementById('galleryInput').value = '';
       document.getElementById('coverPreview').innerHTML = '';
       document.getElementById('nextBtn').classList.remove('visible');
@@ -500,17 +520,26 @@
         const ext=(file.name.split('.').pop()||'png').toLowerCase();
         const id=`custom-${crypto.randomUUID()}`;
         const path=`${user.id}/stickers/${crypto.randomUUID()}.${ext}`;
-        const upload=await db.storage.from(STORAGE_BUCKET).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'});
-        if(upload.error) throw upload.error;
-        const url=db.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+        const upload=await db.storage.from(STICKER_BUCKET).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'31536000'});
+        if(upload.error) throw new Error(`Ошибка загрузки изображения: ${upload.error.message || upload.error}`);
+        const url=db.storage.from(STICKER_BUCKET).getPublicUrl(path).data.publicUrl;
         const name=(file.name||'Мой стикер').replace(/\.[^.]+$/,'').slice(0,40);
-        const storedId=`url:${url}`;
-        const {error}=await db.from('saved_stickers').upsert({user_id:user.id,sticker_id:storedId},{onConflict:'user_id,sticker_id'});
-        if(error) throw error;
-        customStickers.set(storedId,{url,name,path});
+        const {error}=await db.from('saved_stickers').upsert(
+          {user_id:user.id,sticker_id:id},
+          {onConflict:'user_id,sticker_id'}
+        );
+        if(error) console.warn('saved_stickers unavailable; keeping local copy:', error.message || error);
+
+        const key=`smotry_custom_stickers_${user.id}`;
+        let saved=[];
+        try{ saved=JSON.parse(localStorage.getItem(key)||'[]'); }catch(_){ saved=[]; }
+        const next=saved.filter(x=>x?.sticker_id!==id);
+        next.push({sticker_id:id,sticker_url:url,name,path});
+        localStorage.setItem(key,JSON.stringify(next));
+        customStickers.set(id,{url,name,path});
         renderStickerPicker('stickers');
         showToast('Стикер добавлен.');
-      }catch(error){ console.error(error); showToast('Не удалось добавить стикер.'); }
+      }catch(error){ console.error('Custom sticker upload error:', error); showToast(error?.message || 'Не удалось добавить стикер.'); }
       finally{ customStickerUploadBusy=false; }
     }
 
@@ -553,9 +582,33 @@
     }
     async function saveCurrentSticker(){
       const user=await requireAuth('сохранить стикер'); if(!user||!currentCommentContextStickerId)return;
-      try{ const url=currentCommentContextStickerUrl || customStickerUrl(currentCommentContextStickerId) || stickerDataUrl(currentCommentContextStickerId); if(!url) throw new Error('У стикера нет изображения'); const rawId=String(currentCommentContextStickerId||''); const storedId=stickerById(rawId) ? rawId : (rawId.startsWith('url:') ? rawId : `url:${url}`); const {error}=await db.from('saved_stickers').upsert({user_id:user.id,sticker_id:storedId},{onConflict:'user_id,sticker_id'}); if(error)throw error; customStickers.set(storedId,{url,name:stickerById(rawId)?.name || 'Сохранённый стикер'}); closeCommentContext(); showToast('Стикер сохранён.'); }
-      catch(error){ console.error(error); showToast('Не удалось сохранить стикер.'); }
+      try{
+        const id=String(currentCommentContextStickerId);
+        const url=currentCommentContextStickerUrl || customStickerUrl(id) || stickerDataUrl(id);
+        if(!url) throw new Error('У стикера нет изображения');
+
+        const {error}=await db.from('saved_stickers').upsert(
+          {user_id:user.id,sticker_id:id},
+          {onConflict:'user_id,sticker_id'}
+        );
+        if(error) console.warn('saved_stickers unavailable; keeping local copy:', error.message || error);
+
+        const key=`smotry_custom_stickers_${user.id}`;
+        let saved=[];
+        try{ saved=JSON.parse(localStorage.getItem(key)||'[]'); }catch(_){ saved=[]; }
+        const next=saved.filter(x=>String(x?.sticker_id)!==id);
+        next.push({sticker_id:id,sticker_url:url,name:stickerById(id)?.name || 'Сохранённый стикер'});
+        localStorage.setItem(key,JSON.stringify(next));
+
+        customStickers.set(id,{url,name:stickerById(id)?.name || 'Сохранённый стикер'});
+        closeCommentContext();
+        showToast('Стикер сохранён.');
+      }catch(error){
+        console.error(error);
+        showToast('Не удалось сохранить стикер.');
+      }
     }
+
     async function toggleCommentLike(commentId){
       const user=await requireAuth('лайкнуть комментарий'); if(!user)return;
       const liked=likedCommentIds.has(commentId);
@@ -927,28 +980,35 @@
 
     // ========== COMMENT MODERATION ==========
     const COMMENT_PROFANITY_TERMS = [
-      'бляд','бля','блять','ебан','ебать','ебл','еблан','ебись','нахуй','пизд','пиздец','хуйн','хуй','мудак','мраз','суч','шлюх','дроч','говн','дерьм','залуп','уеб','ёб','fuck','fucker','motherfucker','shit','bitch'
+      'бляд','блядь','бля','блять','ебан','ебать','ебл','еблан','ебись','нахуй','нахер','пизд','пизда','пиздец','хуйн','хуйню','хуй','хуйня','хуёв','мудак','мраз','сука','суч','шлюх','дроч','говн','дерьм','залуп','уеб','уёб','ёб','fuck','fucker','motherfucker','shit','bitch'
     ];
     const COMMENT_INSULT_TERMS = [
       'дебил','идиот','кретин','тупиц','тупой','урод','ничтож','жалк','лох','лошар','долбо','придур','козел','козёл','чмо','даун','мусор','позор','тварь','дегенерат','баран'
     ];
+    // Короткие сокращения проверяем только как отдельные токены,
+    // чтобы обычные слова вроде «блок» не попадали под фильтр.
+    const COMMENT_SHORT_ABBREVIATIONS = new Set([
+      'бл','блт','блть','блд','мдк','пзд','пздц','хйн','хй','еб'
+    ]);
 
     function normalizeModerationText(value){
       return String(value||'')
         .normalize('NFKC')
         .toLowerCase()
-        .replace(/ё/g,'е')
-        .replace(/[aàáâäãå]/g,'a')
-        .replace(/[eèéêë]/g,'e')
-        .replace(/[oòóôöõ]/g,'o')
-        .replace(/[cç]/g,'c')
-        .replace(/[xх]/g,'x')
-        .replace(/[yу]/g,'y')
+        .replace(/[ё]/g,'е')
+        // Кириллические/латинские омоглифы и частые leet-замены.
+        .replace(/[аàáâäãå]/g,'a')
+        .replace(/[еeèéêë]/g,'e')
+        .replace(/[оoòóôöõ]/g,'o')
+        .replace(/[сcç]/g,'c')
+        .replace(/[хx]/g,'x')
+        .replace(/[уy]/g,'y')
         .replace(/[0]/g,'o')
         .replace(/[1]/g,'i')
         .replace(/[3]/g,'e')
         .replace(/[4]/g,'a')
         .replace(/[5]/g,'s')
+        // Схлопываем длинные повторения: «хуууйяяяя» -> «хууйя».
         .replace(/([a-zа-яё])\1{2,}/gu,'$1$1');
     }
 
@@ -956,9 +1016,70 @@
       return normalizeModerationText(value).replace(/[^a-zа-я0-9]+/giu,'');
     }
 
+    function moderationTokens(value){
+      return normalizeModerationText(value).split(/[^a-zа-я0-9]+/giu).filter(Boolean);
+    }
+
+    function moderationDistanceWithin(a,b,maxDistance){
+      if(a===b) return 0;
+      if(Math.abs(a.length-b.length)>maxDistance) return maxDistance+1;
+      let prev=Array.from({length:b.length+1},(_,i)=>i);
+      for(let i=1;i<=a.length;i++){
+        const cur=[i];
+        let rowMin=cur[0];
+        for(let j=1;j<=b.length;j++){
+          const cost=a[i-1]===b[j-1]?0:1;
+          const value=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+cost);
+          cur.push(value);
+          if(value<rowMin) rowMin=value;
+        }
+        if(rowMin>maxDistance) return maxDistance+1;
+        prev=cur;
+      }
+      return prev[b.length];
+    }
+
     function hasModerationTerm(value, terms){
-      const normalized=moderationCompact(value);
-      return terms.some(term=>normalized.includes(moderationCompact(term)));
+      const compact=moderationCompact(value);
+      if(!compact) return false;
+      const tokens=moderationTokens(value);
+
+      // Обычный поиск ловит словоформы и варианты с символами/пробелами.
+      if(terms.some(term=>{
+        const t=moderationCompact(term);
+        return t && compact.includes(t);
+      })) return true;
+
+      // Для намеренного искажения слова («хукня», пропуск/замена буквы)
+      // сравниваем и отдельные токены, и окна склеенного текста. Это ловит
+      // варианты вроде «х у к н я» / «х-у-к-н-я».
+      for(const term of terms){
+        const t=moderationCompact(term);
+        if(!t || t.length<4) continue;
+        const limit=t.length>=7?2:1;
+
+        if(Math.abs(compact.length-t.length)<=limit && moderationDistanceWithin(compact,t,limit)<=limit) return true;
+
+        for(let len=Math.max(1,t.length-limit); len<=t.length+limit; len++){
+          for(let i=0; i+len<=compact.length; i++){
+            const piece=compact.slice(i,i+len);
+            if(moderationDistanceWithin(piece,t,limit)<=limit) return true;
+          }
+        }
+
+        if(tokens.some(token=>{
+          if(Math.abs(token.length-t.length)>limit) return false;
+          return moderationDistanceWithin(token,t,limit)<=limit;
+        })) return true;
+      }
+      return false;
+    }
+
+    function hasShortModerationAbbreviation(value){
+      const tokens=moderationTokens(value);
+      const compact=moderationCompact(value);
+      return tokens.some(token=>COMMENT_SHORT_ABBREVIATIONS.has(token))
+        || [...COMMENT_SHORT_ABBREVIATIONS].some(term=>compact===term);
     }
 
     function strictToxicPhrase(value){
@@ -975,8 +1096,7 @@
     function moderateCommentText(value){
       const text=String(value||'').trim();
       if(!text) return {allowed:false,reason:'empty'};
-      if(!userSettings.comment_moderation_enabled) return {allowed:true,reason:''};
-      if(hasModerationTerm(text,COMMENT_PROFANITY_TERMS)) return {allowed:false,reason:'profanity'};
+      if(hasShortModerationAbbreviation(text) || hasModerationTerm(text,COMMENT_PROFANITY_TERMS)) return {allowed:false,reason:'profanity'};
       if(hasModerationTerm(text,COMMENT_INSULT_TERMS)) return {allowed:false,reason:'insult'};
       if(Number(userSettings.comment_moderation_level||2)>=2 && strictToxicPhrase(text)) return {allowed:false,reason:'toxicity'};
       const hidden=(userSettings.hidden_words||[]).map(x=>String(x).trim()).filter(Boolean);
@@ -1073,12 +1193,17 @@
         const v=videos.find(x=>x.id===currentCommentsVideoId); if(v){v.comments++; if(v.remote) await refreshVideo(v.id);}
         const card=document.querySelector(`.video-card[data-id="${CSS.escape(currentCommentsVideoId)}"]`); if(card) card.querySelector('.comment-btn .count').textContent=formatCount(v?.comments||0);
       } catch (error) {
-        console.error(error);
         const message=String(error?.message||'');
-        if(message.includes('COMMENT_MODERATION')) showToast('Комментарий не опубликован: обнаружена запрещённая формулировка.');
-        else if(message.includes('COMMENTS_DISABLED')) showToast('Автор запретил комментарии к этому видео.');
-        else if(message.includes('FOLLOW_REQUIRED')) showToast('Комментировать это видео могут только подписчики автора.');
-        else showToast('Не удалось отправить комментарий.');
+        if(message.includes('COMMENT_MODERATION')) {
+          showToast('Комментарий не опубликован: текст не прошёл проверку.');
+        } else if(message.includes('COMMENTS_DISABLED')) {
+          showToast('Автор запретил комментарии к этому видео.');
+        } else if(message.includes('FOLLOW_REQUIRED')) {
+          showToast('Комментировать это видео могут только подписчики автора.');
+        } else {
+          console.warn('Не удалось отправить комментарий:', message || error);
+          showToast('Не удалось отправить комментарий.');
+        }
       }
     }
 
@@ -1103,15 +1228,15 @@
       try {
         await handleAuthCallback();
         await refreshAuthState();
-        await loadRemoteData();
+        // refreshAuthState() loads the authenticated data when needed. For guests
+        // load the public feed here. Avoid a second request for signed-in users.
+        if (!authUser) await loadRemoteData();
       } catch (e) {
-        remoteLoaded = false;
+        console.error('Init error:', e);
         videos = [];
-        users = [];
-        console.error('Init error:', { code: e?.code, message: e?.message, details: e?.details, hint: e?.hint });
         renderFeed();
         setDbStatus('Supabase · ошибка загрузки');
-        showToast(e?.message ? `Supabase: ${e.message}` : 'Не удалось запустить приложение.');
+        showToast('Не удалось загрузить данные из Supabase.');
       }
     }
 
