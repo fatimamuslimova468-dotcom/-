@@ -1,0 +1,12 @@
+# Alternative to Nginx. Replace smotru.zapto.org with the real domain
+# used to serve the "Смотрю" frontend. Caddy handles HTTPS automatically.
+
+smotru.zapto.org {
+    # Your normal frontend/static-file handler goes here.
+
+    handle_path /supabase/* {
+        reverse_proxy https://xzaryhtrzdjrrqgrowkv.supabase.co {
+            header_up Host xzaryhtrzdjrrqgrowkv.supabase.co
+        }
+    }
+}

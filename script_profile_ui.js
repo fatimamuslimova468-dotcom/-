@@ -6,16 +6,13 @@
       if (!user && authUser && key === String(authUser.id)) user = currentUser;
       if (!user) user = currentUser;
 
-      // Всегда обновляем профиль из Supabase перед показом шапки.
+      // Всегда обновляем профиль перед показом шапки.
       // Это важно для likes_count: он меняется на сервере триггером после лайка,
       // а старый объект в profileCache мог сохранять 0.
       if (key) {
         try {
-          const { data, error } = await db.from('profiles')
-            .select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role')
-            .eq('id', key)
-            .maybeSingle();
-          if (!error && data) {
+          const data = await fetchProfileById(key);
+          if (data) {
             user = userFromProfile(data);
             profileCache.set(user.id, user);
             if (authUser && String(authUser.id) === String(user.id)) currentUser = user;
@@ -237,11 +234,8 @@
       const errorEl = document.getElementById('profileEditError');
       if (errorEl) errorEl.textContent = '';
       try {
-        const { data, error } = await db.from('profiles')
-          .select('id,name,display_name,username,avatar_url,bio,profile_edit_last_at')
-          .eq('id', user.id)
-          .single();
-        if (error) throw error;
+        const data = await fetchProfileById(user.id);
+        if (!data) throw new Error('Профиль не найден');
         profileEditOriginal = data;
         profileEditAvatarUrl = safeUrl(data.avatar_url) || fallbackAvatar(data.display_name || data.name);
         document.getElementById('profileEditName').value = data.display_name || data.name || '';
@@ -452,15 +446,15 @@
 
     function applyPlaybackSettings(){
       applyFeedSoundState();
-      document.querySelectorAll('#feedContainer video').forEach(v=>{
+      const container = document.getElementById('feedContainer');
+      if(!container) return;
+      container.querySelectorAll('.video-card video').forEach(v=>{
         v.autoplay = !!userSettings.autoplay;
-        v.preload = userSettings.data_saver ? 'metadata' : 'auto';
-        if (v.paused && userSettings.autoplay) {
-          const r=v.getBoundingClientRect();
-          if(r.top >= -50 && r.top < window.innerHeight/2) v.play().catch(()=>{});
-        }
+        // Do not force `auto` on every card: the feed itself loads only nearby videos.
+        v.preload = 'none';
         if(!userSettings.autoplay && !v.paused) v.pause();
       });
+      if(userSettings.autoplay && currentScreenName === 'feed') playVisibleVideo();
     }
 
     function notificationSettingFor(type){
@@ -561,7 +555,7 @@
       if(currentSettingsTab==='content') body=`<div class="settings-card"><div class="settings-card-title">Фильтры</div>${settingRow('flag','Фильтр контента','Уровень фильтра нежелательного контента.','content_filter_level','select',[['0','Минимальный'],['1','Средний'],['2','Строгий']])}<div class="setting-row"><div class="setting-icon">${icon('search',18)}</div><div class="setting-main"><div class="setting-label">Скрытые слова</div><div class="setting-help">Слова разделяйте запятыми.</div></div><div class="setting-control"><input type="text" id="hiddenWordsInput" value="${escapeHtml((userSettings.hidden_words||[]).join(', '))}" placeholder="слово, фраза"></div></div></div><div class="settings-card"><div class="settings-card-title">Модерация комментариев</div>${settingRow('shield','Фильтр комментариев','Быстрая проверка комментария до отправки. Нецензурная лексика блокируется сервером всегда; этот переключатель управляет дополнительной модерацией.','comment_moderation_enabled')}${settingRow('flag','Уровень защиты','Строгий режим дополнительно блокирует короткие токсичные реплики вроде «кринж» и «фу».','comment_moderation_level','select',[['1','Базовый'],['2','Строгий']])}<div class="moderation-note"><strong>Защита работает автоматически.</strong> Обходы с заменой символов и пробелами проверяются до сохранения комментария.</div></div>`;
       if(currentSettingsTab==='data') body=`<div class="settings-card"><div class="settings-card-title">Медиа</div>${settingRow('refresh','Экономия трафика','Более лёгкая загрузка видео и превью.','data_saver')}${settingRow('settings','Качество видео','Предпочтительное качество.','video_quality','select',[['auto','Авто'],['360','360p'],['480','480p'],['720','720p'],['1080','1080p']])}</div>`;
       if(currentSettingsTab==='donations') body=`<div class="settings-card"><div class="settings-card-title">DonationAlerts</div><div class="setting-row"><div class="setting-icon">${icon('donate',18)}</div><div class="setting-main"><div class="setting-label">Username для страницы доната</div><div class="setting-help">Укажите username из вашей ссылки DonationAlerts вида donationalerts.com/r/username.</div></div><div class="setting-control" style="display:flex;gap:8px;align-items:center"><input type="text" id="donationUsernameInput" value="${escapeHtml(currentUser?.donationUsername||'')}" maxlength="80" placeholder="username" /><button class="u-btn" id="saveDonationUsername" type="button">Сохранить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('users',18)}</div><div class="setting-main"><div class="setting-label">Кнопка «Поддержать»</div><div class="setting-help">Показывать кнопку доната рядом с вашими видео и в профиле.</div></div><div class="setting-control"><label class="switch"><input type="checkbox" id="donationEnabledToggle" ${currentUser?.donationEnabled?'checked':''}><span class="switch-track"></span></label></div></div><div class="setting-row"><div class="setting-icon">${icon('link',18)}</div><div class="setting-main"><div class="setting-label">Подключение аккаунта</div><div class="setting-help">После подключения «Смотрю» автоматически импортирует новые донаты и превращает их в сообщения в комментариях.</div></div><div class="setting-control"><span class="donation-status ${currentUser?.donationConnected?'connected':'disconnected'}" id="donationStatus">${currentUser?.donationConnected?'Подключено':'Не подключено'}</span></div></div><div class="setting-row"><div class="setting-main"><div class="donation-settings-actions"><button class="u-btn" id="connectDonationBtn" type="button">${currentUser?.donationConnected?'Переподключить':'Подключить DonationAlerts'}</button>${currentUser?.donationConnected?'<button class="u-btn" id="disconnectDonationBtn" type="button">Отключить</button>':''}</div></div></div></div><div class="settings-card"><div class="settings-card-title">Золотой комментарий</div><div class="setting-row"><div class="setting-icon">${icon('donate',18)}</div><div class="setting-main"><div class="setting-label">Автоматическое закрепление</div><div class="setting-help">У автора один золотой комментарий — последнее сообщение от пользователя, который суммарно задонатил автору больше всех. Новый лидер автоматически заменяет прежний.</div></div><div class="setting-control"><span style="font-size:12px;color:#ffd76a;font-weight:800">RUB</span></div></div></div>`;
-      if(currentSettingsTab==='security') body=`<div class="settings-card"><div class="settings-card-title">Безопасность</div><div class="setting-row"><div class="setting-icon">${icon('lock',18)}</div><div class="setting-main"><div class="setting-label">Пароль</div><div class="setting-help">Отправить письмо для восстановления доступа.</div></div><div class="setting-control"><button class="u-btn" id="settingsResetPassword">Сбросить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('mail',18)}</div><div class="setting-main"><div class="setting-label">Подтверждение email</div><div class="setting-help">Управляется через Supabase Auth.</div></div><div class="setting-control"><span style="font-size:12px;color:#76e3a4;font-weight:700">Защищено</span></div></div></div>`;
+      if(currentSettingsTab==='security') body=`<div class="settings-card"><div class="settings-card-title">Безопасность</div><div class="setting-row"><div class="setting-icon">${icon('lock',18)}</div><div class="setting-main"><div class="setting-label">Пароль</div><div class="setting-help">Отправить письмо для восстановления доступа.</div></div><div class="setting-control"><button class="u-btn" id="settingsResetPassword">Сбросить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('mail',18)}</div><div class="setting-main"><div class="setting-label">Подтверждение email</div><div class="setting-help">Управляется системой авторизации.</div></div><div class="setting-control"><span style="font-size:12px;color:#76e3a4;font-weight:700">Защищено</span></div></div></div>`;
       const [title,sub]=titles[currentSettingsTab];
       content.innerHTML=`<div class="settings-inner"><div class="settings-title">${title}</div><div class="settings-subtitle">${sub}</div><div class="settings-save-note" id="settingsSaveNote"></div>${body}</div>`;
       hydrateIcons(content);
@@ -718,14 +712,23 @@
     }
 
     async function loadChatMessages(){ return renderChatMessagesFromDb(false); }
+    function extractSharedVideoIdFromChat(bodyText){
+      const match=String(bodyText||'').match(/#video=([^\s]+)/i); if(!match)return '';
+      try{return decodeURIComponent(match[1]);}catch(_){return match[1];}
+    }
+    function renderChatMessageBody(bodyText){
+      const raw=String(bodyText||''), id=extractSharedVideoIdFromChat(raw), video=id?videos.find(v=>String(v.id)===String(id)):null;
+      if(!video)return escapeHtml(raw);
+      const thumb=video.thumbnail?`<img src="${escapeHtml(video.thumbnail)}" alt="">`:`<span class="chat-video-share-play">${icon('play',22)}</span>`;
+      return `<button type="button" class="chat-video-share" data-chat-video-id="${escapeHtml(video.id)}"><span class="chat-video-share-thumb">${thumb}</span><span class="chat-video-share-info"><span class="chat-video-share-title">${escapeHtml(video.title||'Видео из «Смотрю»')}</span><span class="chat-video-share-desc">Нажмите, чтобы открыть видео</span></span><span class="chat-video-share-icon">${icon('play',16)}</span></button>`;
+    }
     async function renderChatMessagesFromDb(smartScroll=false){
-      if(!activeChatId) return;
-      const {data,error}=await db.from('messages').select('id,sender_id,body,created_at,read_at').eq('conversation_id',activeChatId).order('created_at',{ascending:true}).limit(200);
-      if(error) throw error;
-      const body=document.getElementById('chatBody');
-      if(!data?.length){ body.innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Начните диалог первым сообщением.</div></div>`; return; }
-      body.innerHTML=data.map(m=>`<div class="chat-message ${String(m.sender_id)===String(authUser.id)?'mine':''}"><div class="chat-message-body">${escapeHtml(m.body)}</div><div class="chat-message-meta"><span>${new Date(m.created_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>${String(m.sender_id)===String(authUser.id)&&m.read_at?'✓':''}</div></div>`).join('');
-      if(smartScroll || body.scrollHeight-body.scrollTop-body.clientHeight<180) body.scrollTop=body.scrollHeight;
+      if(!activeChatId)return;
+      const {data,error}=await db.from('messages').select('id,sender_id,body,created_at,read_at').eq('conversation_id',activeChatId).order('created_at',{ascending:true}).limit(200); if(error)throw error;
+      const body=document.getElementById('chatBody'); if(!data?.length){body.innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Начните диалог первым сообщением.</div></div>`;return;}
+      body.innerHTML=data.map(m=>`<div class="chat-message ${String(m.sender_id)===String(authUser.id)?'mine':''}"><div class="chat-message-body">${renderChatMessageBody(m.body)}</div><div class="chat-message-meta"><span>${new Date(m.created_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>${String(m.sender_id)===String(authUser.id)&&m.read_at?'✓':''}</div></div>`).join('');
+      body.querySelectorAll('[data-chat-video-id]').forEach(card=>card.addEventListener('click',async()=>{const id=card.dataset.chatVideoId;closeDirectChat();await openVideoById(id,{updateHash:true,scroll:true});}));
+      hydrateIcons(body); if(smartScroll||body.scrollHeight-body.scrollTop-body.clientHeight<180)body.scrollTop=body.scrollHeight;
     }
 
     async function markChatRead(){

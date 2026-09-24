@@ -628,6 +628,7 @@
     }
 
     // ========== MODALS / COMMENTS ==========
+    let currentDownloadVideoId = null;
     function setupModals() {
       document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModals(); }));
       document.getElementById('speedOptions').addEventListener('click', e => {
@@ -644,6 +645,16 @@
         const btn = e.target.closest('[data-share-kind]');
         if (!btn || !currentShareVideoId) return;
         shareVideoTo(btn.dataset.shareKind, currentShareVideoId);
+      });
+      document.getElementById('downloadOptions')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-download-mime]');
+        if (!btn || !currentDownloadVideoId || btn.disabled) return;
+        downloadPreparedVideo(currentDownloadVideoId, btn.dataset.downloadMime, btn.dataset.downloadExt);
+      });
+      document.getElementById('shareFriendList')?.addEventListener('click', e => {
+        const row = e.target.closest('[data-share-chat-id]');
+        if (!row || !currentShareVideoId) return;
+        sendVideoToChat(row.dataset.shareChatId, row.dataset.shareChatPartner, currentShareVideoId);
       });
       document.getElementById('commentStickerBtn').addEventListener('click', openStickerPicker);
       document.querySelectorAll('[data-sticker-tab]').forEach(t => t.addEventListener('click', () => renderStickerPicker(t.dataset.stickerTab)));
@@ -706,7 +717,7 @@
       ['touchend','touchmove','touchcancel'].forEach(type=>document.addEventListener(type,()=>{if(commentLongPressTimer){clearTimeout(commentLongPressTimer);commentLongPressTimer=null;}},{passive:true}));
     }
 
-    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; }
+    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; currentDownloadVideoId = null; }
     function openSpeedModal() { closeModals(); document.getElementById('speedModal').classList.add('visible'); }
     function openMore(videoId) {
       currentMoreVideoId = videoId;
@@ -729,6 +740,219 @@
       hydrateIcons(document.getElementById('moreModal'));
     }
 
+    function getVideoSourceExt(video) {
+      const raw=String(video?.src||'').split('?')[0].split('#')[0];
+      return raw.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase() || 'webm';
+    }
+
+    function getRecorderProfiles() {
+      const candidates=[
+        {mime:'video/webm;codecs=vp9,opus',ext:'webm',label:'WebM'},
+        {mime:'video/webm;codecs=vp8,opus',ext:'webm',label:'WebM · совместимый'},
+        {mime:'video/mp4;codecs=avc1.42E01E,mp4a.40.2',ext:'mp4',label:'MP4'},
+        {mime:'video/mp4',ext:'mp4',label:'MP4'}
+      ];
+      if(!window.MediaRecorder)return [];
+      const seen=new Set();
+      return candidates.filter(x=>{if(seen.has(x.mime))return false;seen.add(x.mime);try{return MediaRecorder.isTypeSupported(x.mime);}catch(_){return false;}});
+    }
+
+    function openDownloadModal(videoId){
+      const v=videos.find(x=>String(x.id)===String(videoId));
+      if(!v || v.mediaType==='image'){showToast('Для изображения загрузка видео недоступна.');return;}
+      currentDownloadVideoId=String(videoId);
+      document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('visible'));
+      const list=document.getElementById('downloadOptions'); if(!list)return;
+      const profiles=getRecorderProfiles();
+      const available=profiles.length?profiles:[{mime:'video/webm',ext:'webm',label:'WebM'}];
+      const seenExt=new Set();
+      list.innerHTML=available.filter(x=>{if(seenExt.has(x.ext))return false;seenExt.add(x.ext);return true;}).map(x=>`<button class="download-option" type="button" data-download-mime="${escapeHtml(x.mime)}" data-download-ext="${escapeHtml(x.ext)}"><span class="download-option-main"><span class="download-option-name">.${escapeHtml(x.ext)}</span><span class="download-option-meta">${escapeHtml(x.label)}</span></span><span class="download-option-arrow">${icon('download',18)}</span></button>`).join('');
+      document.getElementById('downloadModal')?.classList.add('visible');
+      hydrateIcons(document.getElementById('downloadModal'));
+    }
+
+    function createSmoTriuRenderer(video){
+      const maxWidth=1080, sw=Number(video.videoWidth||720), sh=Number(video.videoHeight||1280), scale=Math.min(1,maxWidth/sw);
+      const canvas=document.createElement('canvas'); canvas.width=Math.max(320,Math.round(sw*scale)); canvas.height=Math.max(180,Math.round(sh*scale));
+      const ctx=canvas.getContext('2d',{alpha:false}); if(!ctx)throw new Error('CANVAS_UNAVAILABLE');
+      const label='Смотрю', fs=Math.max(19,Math.round(canvas.width*.032)), pad=Math.max(16,Math.round(canvas.width*.022));
+      let last=performance.now(), side=0;
+      const render=(now=performance.now())=>{
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        if(now-last>=2200){side=side===0?1:0;last=now;}
+        ctx.save();
+        ctx.font=`800 ${fs}px Arial,sans-serif`;
+        ctx.textBaseline='middle';
+        const tw=ctx.measureText(label).width;
+        const x=side===0 ? pad : canvas.width-tw-pad;
+        const y=canvas.height-Math.max(30,Math.round(canvas.height*.09));
+        ctx.shadowColor='rgba(182,92,255,.95)';
+        ctx.shadowBlur=Math.max(14,Math.round(fs*.75));
+        ctx.lineWidth=Math.max(2,Math.round(fs*.08));
+        ctx.strokeStyle='rgba(123,49,255,.72)';
+        ctx.strokeText(label,x,y);
+        const grad=ctx.createLinearGradient(x,y-fs*.55,x+tw,y+fs*.25);
+        grad.addColorStop(0,'#d99cff');
+        grad.addColorStop(.5,'#a44cff');
+        grad.addColorStop(1,'#7b2cff');
+        ctx.fillStyle=grad;
+        ctx.fillText(label,x,y);
+        ctx.restore();
+        return requestAnimationFrame(render);
+      };
+      return {canvas,render};
+    }
+
+    async function downloadPreparedVideo(videoId,requestedMime,requestedExt){
+      const v=videos.find(x=>String(x.id)===String(videoId));
+      if(!v?.src)return;
+      document.querySelectorAll('#downloadOptions button').forEach(b=>b.disabled=true);
+      showToast('Подготавливаем видео…');
+
+      let sourceUrl='', hiddenVideo=null, raf=0, audioContext=null;
+      let stream=null, recorder=null;
+      try{
+        const rawSrc=String(v.src);
+        let loadUrl=rawSrc;
+
+        // Prefer a local Blob URL so the canvas can safely read video frames.
+        // Fall back to the direct URL only when the fetch is unavailable.
+        try{
+          const response=await fetch(rawSrc,{mode:'cors',credentials:'omit',cache:'no-store'});
+          if(!response.ok)throw new Error(`HTTP_${response.status}`);
+          const sourceBlob=await response.blob();
+          if(!sourceBlob.size)throw new Error('EMPTY_SOURCE');
+          sourceUrl=URL.createObjectURL(sourceBlob);
+          loadUrl=sourceUrl;
+        }catch(fetchError){
+          if(String(fetchError?.message||'').startsWith('HTTP_')) throw fetchError;
+          // Direct playback can still work for sources that do not expose a fetchable CORS response.
+          loadUrl=rawSrc;
+        }
+
+        hiddenVideo=document.createElement('video');
+        hiddenVideo.crossOrigin='anonymous';
+        hiddenVideo.src=loadUrl;
+        hiddenVideo.playsInline=true;
+        hiddenVideo.preload='auto';
+        hiddenVideo.muted=true;
+        hiddenVideo.defaultMuted=true;
+        hiddenVideo.setAttribute('playsinline','');
+        hiddenVideo.setAttribute('webkit-playsinline','');
+        hiddenVideo.style.cssText='position:fixed;left:-12000px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;';
+        document.body.appendChild(hiddenVideo);
+
+        await new Promise((resolve,reject)=>{
+          const onReady=()=>{cleanup();resolve();};
+          const onError=()=>{cleanup();reject(new Error('VIDEO_LOAD_FAILED'));};
+          const cleanup=()=>{
+            hiddenVideo.removeEventListener('loadedmetadata',onReady);
+            hiddenVideo.removeEventListener('canplay',onReady);
+            hiddenVideo.removeEventListener('error',onError);
+          };
+          hiddenVideo.addEventListener('loadedmetadata',onReady,{once:true});
+          hiddenVideo.addEventListener('canplay',onReady,{once:true});
+          hiddenVideo.addEventListener('error',onError,{once:true});
+          hiddenVideo.load();
+        });
+
+        if(!Number.isFinite(hiddenVideo.duration)||hiddenVideo.duration<=0)throw new Error('VIDEO_DURATION_UNAVAILABLE');
+
+        const renderer=createSmoTriuRenderer(hiddenVideo);
+        stream=renderer.canvas.captureStream(30);
+
+        // Keep audio when the browser allows it. Muting the media element is only used
+        // to satisfy autoplay policies; the Web Audio source remains available for capture.
+        if(window.AudioContext||window.webkitAudioContext){
+          try{
+            audioContext=new (window.AudioContext||window.webkitAudioContext)();
+            const sourceNode=audioContext.createMediaElementSource(hiddenVideo);
+            const destination=audioContext.createMediaStreamDestination();
+            sourceNode.connect(destination);
+            destination.stream.getAudioTracks().forEach(track=>stream.addTrack(track));
+            await audioContext.resume().catch(()=>{});
+          }catch(_){
+            // Video export remains valid without an audio track.
+          }
+        }
+
+        const profiles=getRecorderProfiles();
+        let mime=requestedMime || profiles[0]?.mime || '';
+        if(!mime || !MediaRecorder.isTypeSupported(mime)){
+          mime=profiles.find(x=>x.ext==='webm')?.mime || '';
+        }
+        if(!mime || !window.MediaRecorder || !MediaRecorder.isTypeSupported(mime)){
+          throw new Error('FORMAT_NOT_SUPPORTED');
+        }
+
+        recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:7000000});
+        const chunks=[];
+        recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+
+        const stopped=new Promise((resolve,reject)=>{
+          recorder.addEventListener('stop',resolve,{once:true});
+          recorder.addEventListener('error',()=>reject(new Error('RECORDER_FAILED')),{once:true});
+        });
+
+        let ended=false;
+        const endedPromise=new Promise(resolve=>{
+          const finish=()=>{if(ended)return;ended=true;resolve();};
+          hiddenVideo.addEventListener('ended',finish,{once:true});
+          // Some browsers do not deliver `ended` reliably for Blob-backed media.
+          const maxWait=Math.max(5000,(hiddenVideo.duration+3)*1000);
+          setTimeout(finish,maxWait);
+        });
+
+        raf=requestAnimationFrame(renderer.render);
+        recorder.start(250);
+        try{
+          await hiddenVideo.play();
+        }catch(playError){
+          // A muted media element should normally autoplay. Retry once after an explicit load.
+          hiddenVideo.muted=true;
+          hiddenVideo.currentTime=0;
+          await hiddenVideo.play();
+        }
+
+        await endedPromise;
+        if(recorder.state!=='inactive')recorder.stop();
+        await stopped;
+
+        const result=new Blob(chunks,{type:recorder.mimeType||mime});
+        if(!result.size)throw new Error('EMPTY_DOWNLOAD');
+
+        const actualMime=recorder.mimeType||mime;
+        const ext=actualMime.includes('mp4')?'mp4':'webm';
+        const safeName=String(v.title||'video').replace(/[^\p{L}\p{N}_-]+/gu,'_').slice(0,60)||'video';
+        const resultUrl=URL.createObjectURL(result);
+        const link=document.createElement('a');
+        link.href=resultUrl;
+        link.download=`${safeName}_smotriu.${ext}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(()=>URL.revokeObjectURL(resultUrl),2500);
+        closeModals();
+        showToast(`Видео сохранено как .${ext}.`);
+      }catch(error){
+        console.error('Video export failed:',error);
+        const msg=String(error?.message||'');
+        if(msg.startsWith('HTTP_'))showToast('Не удалось получить видео. Проверьте подключение.');
+        else if(msg==='FORMAT_NOT_SUPPORTED')showToast('Этот формат не поддерживается этим браузером. Выберите WebM.');
+        else if(msg==='VIDEO_LOAD_FAILED'||msg==='VIDEO_DURATION_UNAVAILABLE')showToast('Не удалось открыть видео для обработки.');
+        else if(msg==='EMPTY_DOWNLOAD'||msg==='RECORDER_FAILED')showToast('Не удалось завершить создание файла. Попробуйте ещё раз.');
+        else showToast('Не удалось создать файл для скачивания.');
+      }finally{
+        if(raf)cancelAnimationFrame(raf);
+        if(recorder&&recorder.state!=='inactive'){try{recorder.stop();}catch(_) {}}
+        if(hiddenVideo){try{hiddenVideo.pause();}catch(_){}hiddenVideo.remove();}
+        if(sourceUrl)URL.revokeObjectURL(sourceUrl);
+        if(audioContext){try{await audioContext.close();}catch(_){} }
+        if(stream)stream.getTracks().forEach(track=>{try{track.stop();}catch(_){}});
+        document.querySelectorAll('#downloadOptions button').forEach(b=>b.disabled=false);
+      }
+    }
+
     function getStoragePathFromPublicUrl(url) {
       try {
         const parsed = new URL(String(url || ''));
@@ -737,6 +961,39 @@
         if (idx === -1) return null;
         return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
       } catch (_) { return null; }
+    }
+
+    async function openShareFriendModal(videoId){
+      const user=await requireAuth('отправить видео другу'); if(!user)return;
+      currentShareVideoId=String(videoId);
+      const list=document.getElementById('shareFriendList'); if(!list)return;
+      list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',34)}</div><div>Загружаем чаты…</div></div>`;
+      document.querySelectorAll('.modal-overlay').forEach(m=>{if(m.id!=='shareFriendModal')m.classList.remove('visible');});
+      document.getElementById('shareFriendModal')?.classList.add('visible');
+      try{
+        const {data:memberships,error:membershipError}=await db.from('conversation_members').select('conversation_id').eq('user_id',user.id); if(membershipError)throw membershipError;
+        const ids=[...new Set((memberships||[]).map(x=>x.conversation_id).filter(Boolean))];
+        if(!ids.length){list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',34)}</div><div>У вас пока нет личных чатов.</div><button class="share-friend-empty-btn" type="button" onclick="closeModals();showScreen('inbox')">Открыть чаты</button></div>`;hydrateIcons(list);return;}
+        const [{data:conversations,error:convError},{data:members,error:membersError}]=await Promise.all([
+          db.from('conversations').select('id,type,last_text,updated_at').in('id',ids).eq('type','private'),
+          db.from('conversation_members').select('conversation_id,user_id').in('conversation_id',ids)
+        ]); if(convError)throw convError;if(membersError)throw membersError;
+        const otherIds=[...new Set((members||[]).filter(m=>String(m.user_id)!==String(user.id)).map(m=>m.user_id).filter(Boolean))];
+        const {data:profiles}=otherIds.length?await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id',otherIds):{data:[]};
+        const byId=new Map((profiles||[]).map(p=>[String(p.id),p]));
+        const rows=(conversations||[]).map(c=>{const other=(members||[]).find(m=>m.conversation_id===c.id&&String(m.user_id)!==String(user.id));const partner=other?byId.get(String(other.user_id)):null;return partner?{c,partner}:null;}).filter(Boolean).sort((x,y)=>new Date(y.c.updated_at||0)-new Date(x.c.updated_at||0));
+        if(!rows.length){list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',34)}</div><div>Личные чаты пока пусты.</div></div>`;hydrateIcons(list);return;}
+        list.innerHTML=rows.map(({c,partner})=>{const name=partner.display_name||partner.name||'Пользователь',username=partner.username?`@${partner.username}`:'',avatar=partner.avatar_url||fallbackAvatar(name);return `<button class="share-friend-row" type="button" data-share-chat-id="${escapeHtml(c.id)}" data-share-chat-partner="${escapeHtml(partner.id)}"><span class="share-friend-avatar"><img src="${escapeHtml(avatar)}" alt=""></span><span class="share-friend-main"><span class="share-friend-name">${escapeHtml(name)}</span><span class="share-friend-username">${escapeHtml(username)}</span></span><span class="share-friend-arrow">${icon('send',18)}</span></button>`;}).join('');
+        hydrateIcons(list);
+      }catch(error){console.error('openShareFriendModal',error);list.innerHTML=`<div class="empty-state"><div class="icon">${icon('alert',34)}</div><div>Не удалось загрузить чаты.</div></div>`;hydrateIcons(list);}
+    }
+
+    async function sendVideoToChat(conversationId,partnerId,videoId){
+      const user=await requireAuth('отправить видео другу'); if(!user)return;
+      const v=videos.find(x=>String(x.id)===String(videoId)); if(!v)return;
+      const url=getVideoShareUrl(v.id),body=`🎬 ${String(v.title||'Видео').slice(0,120)}\nПосмотри видео в «Смотрю»:\n${url}`;
+      try{const {error}=await db.rpc('send_direct_message',{p_conversation_id:conversationId,p_body:body});if(error)throw error;await registerVideoShare(v.id);closeModals();showToast('Видео отправлено другу.');}
+      catch(error){console.error('sendVideoToChat',error);const msg=String(error?.message||'');if(msg.includes('NOT_A_MEMBER'))showToast('Этот чат больше недоступен.');else showToast('Не удалось отправить видео в чат.');}
     }
 
     async function deleteCurrentVideo() {
@@ -1223,7 +1480,6 @@
       setupDonationRealtime();
       setupInboxRealtime();
       handleDonationAlertsReturn();
-      document.getElementById('dbStatus').style.display = 'block';
 
       try {
         await handleAuthCallback();
@@ -1231,12 +1487,12 @@
         // refreshAuthState() loads the authenticated data when needed. For guests
         // load the public feed here. Avoid a second request for signed-in users.
         if (!authUser) await loadRemoteData();
+        await handleVideoHash();
       } catch (e) {
         console.error('Init error:', e);
         videos = [];
         renderFeed();
-        setDbStatus('Supabase · ошибка загрузки');
-        showToast('Не удалось загрузить данные из Supabase.');
+        showToast('Не удалось загрузить данные.');
       }
     }
 
@@ -1254,6 +1510,7 @@
         try {
           await refreshAuthState();
           await loadRemoteData();
+          await handleVideoHash();
         } catch (e) { console.warn('auth state reload', e); }
       }, 0);
     });

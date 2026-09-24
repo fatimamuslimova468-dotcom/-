@@ -1,0 +1,17 @@
+# Caddy конфигурация именно для Смотрю.
+# Домен уже используется для frontend: https://smotru.zapto.org
+# Caddy автоматически выдаёт/обновляет HTTPS-сертификат.
+
+smotru.zapto.org {
+    # ВАЖНО: этот блок должен идти ДО общего file_server,
+    # чтобы /supabase/* уходил на Supabase, а не на index.html.
+    handle_path /supabase/* {
+        reverse_proxy https://xzaryhtrzdjrrqgrowkv.supabase.co {
+            header_up Host xzaryhtrzdjrrqgrowkv.supabase.co
+        }
+    }
+
+    # Заменить на свой существующий обработчик сайта, если он уже настроен.
+    root * /var/www/smotru
+    file_server
+}

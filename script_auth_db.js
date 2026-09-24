@@ -309,7 +309,7 @@
       if (!authUser) return;
 
       // The current database can have saved_stickers without sticker_url.
-      // Store URLs for custom stickers locally and only read sticker_id from Supabase.
+      // Store URLs for custom stickers locally and only read sticker_id from the remote store.
       const { data, error } = await db.from('saved_stickers')
         .select('sticker_id')
         .eq('user_id', authUser.id)
@@ -391,7 +391,7 @@
             customStickers.clear();
             followingIds.clear();
             friendIds.clear();
-            currentUser = { id:null, name:'Гость', username:'guest', avatar:avatars[8], followers:0, following:0, likes:0, bio:'Аккаунт заблокирован', donationUsername:'', donationEnabled:false, donationConnected:false };
+            currentUser = { id:null, name:'Гость', username:'guest', avatar:fallbackAvatar('Пользователь'), followers:0, following:0, likes:0, bio:'Аккаунт заблокирован', donationUsername:'', donationEnabled:false, donationConnected:false };
             updateAuthUi();
             showToast(`Аккаунт заблокирован.${reason}`);
           } else {
@@ -404,7 +404,7 @@
         followingIds.clear();
         friendIds.clear();
         currentUser = {
-          id: null, name: 'Гость', username: 'guest', avatar: avatars[8], followers: 0, following: 0, likes: 0,
+          id: null, name: 'Гость', username: 'guest', avatar: fallbackAvatar('Пользователь'), followers: 0, following: 0, likes: 0,
           bio: 'Войдите, чтобы публиковать и взаимодействовать с видео', donationUsername:'', donationEnabled:false, donationConnected:false
         };
       }
@@ -459,13 +459,7 @@
       showToast('Вы вышли из аккаунта.');
     }
 
-    function updateAuthUi() {
-      const status = document.getElementById('dbStatus');
-      if (status) {
-        status.textContent = authUser ? `Supabase · ${currentUser.username}` : 'Supabase · публичный режим';
-        status.classList.add('ok');
-      }
-    }
+    function updateAuthUi() {}
 
     function addCacheBust(url) {
       const clean = safeUrl(url);
@@ -512,7 +506,6 @@
     }
 
     async function _loadRemoteData(options = {}) {
-      setDbStatus(options.force ? 'Обновление ленты…' : 'Загрузка данных…');
       try {
         const videoResult = await db.from('videos')
           .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username')
@@ -525,11 +518,8 @@
         const rows = videoResult.data || [];
         const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
         if (userIds.length) {
-          const profileResult = await db.from('profiles')
-            .select('*')
-            .in('id', userIds);
-          if (profileResult.error) throw profileResult.error;
-          (profileResult.data || []).forEach(p => {
+          const profileRows = await fetchProfilesByIds(userIds);
+          (profileRows || []).forEach(p => {
             const u = userFromProfile(p);
             profileCache.set(u.id, u);
           });
@@ -577,20 +567,24 @@
         });
         videos = visibleMapped;
         remoteLoaded = true;
-        setDbStatus(authUser ? `Supabase · ${currentUser.username}` : 'Supabase · публичный режим', true);
         renderFeed({ reshuffle: true });
         renderSearchSuggestions();
         if (currentProfile) renderProfileGrid('videos');
       } catch (error) {
-        console.error('Supabase load error:', error);
+        console.error('Ошибка загрузки данных:', {
+          message: error?.message || String(error),
+          code: error?.code || '',
+          details: error?.details || '',
+          hint: error?.hint || '',
+          status: error?.status || 0
+        });
         videos = [];
-        setDbStatus('Supabase · ошибка загрузки');
         renderFeed();
-        showToast('Не удалось загрузить данные из Supabase.');
+        showToast('Не удалось загрузить данные.');
       }
     }
 
-    // Prevent duplicate Supabase loads when init() and onAuthStateChange() fire together.
+    // Prevent duplicate data loads when init() and auth state changes fire together.
     let remoteLoadPromise = null;
     async function loadRemoteData(options = {}) {
       if (remoteLoadPromise) return remoteLoadPromise;

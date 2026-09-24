@@ -1,7 +1,47 @@
-// ========== SUPABASE ==========
-    const SUPABASE_URL = "https://xzaryhtrzdjrrqgrowkv.supabase.co";
+// ========== APP DATA LAYER ==========
+    // In production the browser uses a same-origin /supabase proxy.
+    // This avoids a direct browser connection to *.supabase.co while keeping
+    // the existing Supabase project, Auth, Storage and Realtime intact.
+    const SUPABASE_DIRECT_URL = "https://xzaryhtrzdjrrqgrowkv.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EwldCPF1drff-q6Ei5zYcQ__is80B0T";
-    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const CONFIGURED_SUPABASE_URL = window.SMOTRY_CONFIG?.SUPABASE_URL || '';
+    const isLocalDev = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+    const SUPABASE_URL = normalizeSupabaseBaseUrl(
+      CONFIGURED_SUPABASE_URL || (isLocalDev ? SUPABASE_DIRECT_URL : '/supabase')
+    );
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      },
+      global: {
+        headers: { 'X-Client-Info': 'smotry-web' }
+      }
+    });
+
+    function normalizeSupabaseBaseUrl(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '/supabase';
+      return raw.replace(/\/+$/, '');
+    }
+
+    function rewriteSupabaseUrl(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      try {
+        const u = new URL(raw, window.location.href);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+        const direct = new URL(SUPABASE_DIRECT_URL);
+        if (u.host !== direct.host) return u.href;
+
+        const base = new URL(SUPABASE_URL, window.location.href);
+        const basePath = base.pathname.replace(/\/+$/, '');
+        return `${base.origin}${basePath}${u.pathname}${u.search}${u.hash}`;
+      } catch (_) {
+        return '';
+      }
+    }
     const STORAGE_BUCKET = "smotry-videos";
     const STICKER_BUCKET = "smotry-videos";
     const MUSIC_2021_CATALOG = [
@@ -325,6 +365,24 @@
     let refreshTracking = false;
     const profileCache = new Map();
     const viewedVideos = new Set();
+
+    // ========== PERFORMANCE ==========
+    // Keep every feature, but adapt rendering effects to the device.
+    const APP_PERFORMANCE = (() => {
+      try {
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const cores = Number(navigator.hardwareConcurrency || 0);
+        const memory = Number(navigator.deviceMemory || 0);
+        const saveData = Boolean(connection?.saveData);
+        const slowConnection = ['slow-2g', '2g'].includes(connection?.effectiveType);
+        const low = saveData || slowConnection || (cores > 0 && cores <= 4) || (memory > 0 && memory <= 4);
+        return { low, cores, memory, saveData };
+      } catch (_) {
+        return { low: false, cores: 0, memory: 0, saveData: false };
+      }
+    })();
+    document.documentElement.classList.toggle('low-performance', APP_PERFORMANCE.low);
+
     let profileEditOriginal = null;
     let profileEditAvatarUrl = '';
     let profileEditSelectedFile = null;
@@ -340,17 +398,61 @@
 
     function safeUrl(value) {
       if (!value) return '';
-      try {
-        const u = new URL(value, window.location.href);
-        if (u.protocol === 'https:' || u.protocol === 'http:') return u.href;
-      } catch (_) {}
-      return '';
+      return rewriteSupabaseUrl(value);
     }
 
     function fallbackAvatar(name = 'Пользователь') {
       const letter = escapeHtml(String(name).trim().charAt(0).toUpperCase() || 'П');
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="80" fill="#242424"/><text x="80" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-size="68" font-weight="700" fill="#ffffff">${letter}</text></svg>`;
       return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    }
+
+    // Profile queries are intentionally tolerant to older Supabase schemas.
+    // Some deployments may not yet have optional moderation/donation columns;
+    // a single missing column makes PostgREST return HTTP 400 for the whole select.
+    const PROFILE_SELECT_CANDIDATES = [
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role,warning_count',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified',
+      'id,name,display_name,username,avatar_url,bio',
+      'id,display_name,username,avatar_url'
+    ];
+
+    let activeProfileSelectFields = null;
+
+    function isProfileSchemaSelectError(error) {
+      const status = Number(error?.status || 0);
+      const code = String(error?.code || '');
+      const msg = String(error?.message || '').toLowerCase();
+      return status === 400 || /^pgrst20[0-9]/.test(code) || msg.includes('schema cache') || msg.includes('column') || msg.includes('does not exist');
+    }
+
+    async function fetchProfilesByIds(ids) {
+      const cleanIds = [...new Set((ids || []).map(x => String(x || '').trim()).filter(Boolean))];
+      if (!cleanIds.length) return [];
+      const candidates = activeProfileSelectFields
+        ? [activeProfileSelectFields, ...PROFILE_SELECT_CANDIDATES.filter(x => x !== activeProfileSelectFields)]
+        : PROFILE_SELECT_CANDIDATES;
+      let lastError = null;
+      for (const fields of candidates) {
+        const { data, error } = await db.from('profiles').select(fields).in('id', cleanIds);
+        if (!error) {
+          activeProfileSelectFields = fields;
+          return data || [];
+        }
+        lastError = error;
+        if (!isProfileSchemaSelectError(error)) throw error;
+        console.warn('Profile select fallback:', { fields, code:error?.code, status:error?.status, message:error?.message });
+      }
+      throw lastError || new Error('Не удалось загрузить профили');
+    }
+
+    async function fetchProfileById(id) {
+      const key = String(id || '').trim();
+      if (!key) return null;
+      const rows = await fetchProfilesByIds([key]);
+      return rows.find(row => String(row?.id) === key) || null;
     }
 
     function userFromProfile(profile) {
@@ -378,13 +480,6 @@
       };
     }
 
-    function setDbStatus(text, ok = false) {
-      const el = document.getElementById('dbStatus');
-      if (!el) return;
-      el.textContent = text;
-      el.classList.toggle('ok', ok);
-      el.classList.toggle('warn', !ok);
-    }
 
     function showToast(message) {
       let toast = document.getElementById('appToast');
@@ -416,9 +511,8 @@
       const raw = String(row?.media_url || row?.video_url || row?.image_url || '').trim();
       if (!raw) return '';
 
-      // В базе часть старых публикаций хранит только имя/путь объекта
-      // (например, "folder/video.mp4"), а не полный public URL.
-      // Для таких значений строим корректный URL Supabase Storage.
+      // Старые публикации могут хранить только имя/путь объекта,
+      // а не полный URL. Для таких значений строим публичный адрес хранения.
       const absolute = safeUrl(raw);
       if (absolute) return absolute;
 

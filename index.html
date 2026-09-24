@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Смотрю</title>
+  <script>
+    // Production domain: https://smotru.zapto.org
+    // Supabase is intentionally same-origin under /supabase so the browser never
+    // needs to connect directly to *.supabase.co.
+    // Keep this empty; the reverse proxy on smotru.zapto.org handles /supabase/*.
+    window.SMOTRY_CONFIG = Object.assign({ SUPABASE_URL: '' }, window.SMOTRY_CONFIG || {});
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
   <link rel="stylesheet" href="style_core.css">
   <link rel="stylesheet" href="style_feed.css">
@@ -195,6 +202,7 @@
         <h3>Ещё</h3>
         <div class="menu-options">
           <button onclick="openSpeedModal()"><span class="ui-icon" data-icon="settings"></span> Скорость воспроизведения</button>
+          <button onclick="openDownloadModal(currentMoreVideoId)"><span class="ui-icon" data-icon="download"></span> Загрузить видео</button>
           <button id="favoriteAction"><span class="ui-icon" data-icon="bookmark"></span> В избранное</button>
           <button onclick="reportCurrentVideo()" id="reportCurrentVideoAction"><span class="ui-icon" data-icon="flag"></span> Пожаловаться</button>
           <button onclick="deleteCurrentVideo()" id="deleteCurrentVideoAction" class="danger-action" style="display:none"><span class="ui-icon" data-icon="close"></span> Удалить публикацию</button>
@@ -243,6 +251,25 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="downloadModal">
+      <div class="modal-sheet download-sheet">
+        <div class="handle"></div>
+        <h3>Загрузить видео</h3>
+        <div class="download-description">Выберите формат файла для сохранения видео.</div>
+        <div class="download-options" id="downloadOptions"></div>
+        <div class="download-note">Доступные форматы зависят от возможностей браузера. Без перекодирования скачивание MP4 не выполняется, чтобы не выдавать WebM-файл за MP4.</div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="shareFriendModal">
+      <div class="modal-sheet share-friend-sheet">
+        <div class="handle"></div>
+        <h3>Отправить другу</h3>
+        <div class="share-friend-subtitle" id="shareFriendSubtitle">Выберите чат</div>
+        <div class="share-friend-list" id="shareFriendList"></div>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="shareModal">
       <div class="modal-sheet share-sheet">
         <div class="handle"></div>
@@ -255,6 +282,10 @@
           </div>
         </div>
         <div class="share-options" id="shareOptions">
+          <button class="share-option" type="button" data-share-kind="friend" aria-label="Отправить другу в Смотрю">
+            <span class="share-option-icon brand-native"><span data-icon="message"></span></span>
+            <span class="share-option-label">Друг в «Смотрю»</span>
+          </button>
           <button class="share-option" type="button" data-share-kind="telegram" aria-label="Поделиться в Telegram">
             <span class="share-option-icon brand-telegram" aria-hidden="true">
               <svg class="share-brand-svg" viewBox="0 0 48 48" fill="none">
@@ -295,8 +326,6 @@
       </div>
     </div>
   </div>
-
-    <div class="db-status warn" id="dbStatus">Подключение к базе…</div>
 
 
     <div class="modal-overlay" id="connectionsModal">
@@ -467,6 +496,7 @@
         </section>
       </div>
     </div>
+  <!-- performance-optimized -->
   <script src="script_core.js"></script>
   <script src="script_auth_db.js"></script>
   <script src="script_nav_feed.js"></script>

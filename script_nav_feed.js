@@ -85,6 +85,8 @@
       }, true);
     }
 
+    window.addEventListener('hashchange', () => { setTimeout(() => handleVideoHash().catch(() => {}), 0); });
+
     function setupBottomNav() {
       document.querySelectorAll('.bottom-nav .btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -143,6 +145,32 @@
           }
         }
       });
+    }
+
+    function loadFeedVideo(card, preload = 'metadata') {
+      const video = card?.querySelector('video');
+      if (!video) return null;
+      const source = video.dataset.src;
+      if (!source) return video;
+      if (!video.getAttribute('src')) {
+        video.src = source;
+        video.preload = preload;
+        video.load();
+      } else if (preload && video.preload !== preload) {
+        video.preload = preload;
+      }
+      return video;
+    }
+
+    function unloadFeedVideo(card) {
+      const video = card?.querySelector('video');
+      if (!video || !video.getAttribute('src')) return;
+      try { video.pause(); } catch (_) {}
+      video.removeAttribute('src');
+      video.load();
+      const loader = card.querySelector('.video-loading');
+      if (loader) loader.classList.remove('hidden');
+      card.classList.remove('video-started');
     }
 
     function setFeedRefreshing(active) {
@@ -296,7 +324,7 @@
       container.innerHTML = '';
       let list = reshuffle ? shuffleArray(videos) : [...videos];
       if (currentFeedTab !== 'following' && currentFeedTab !== 'friends' && !list.length) {
-        container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;"><div class="icon">${icon('play',52)}</div><div style="font-size:17px;font-weight:800;margin-top:10px;">Пока нет опубликованных видео</div><div style="opacity:.62;font-size:13px;margin-top:6px;max-width:280px;">Опубликуйте первое видео — оно появится здесь после загрузки в Supabase.</div></div>`;
+        container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;"><div class="icon">${icon('play',52)}</div><div style="font-size:17px;font-weight:800;margin-top:10px;">Пока нет опубликованных видео</div><div style="opacity:.62;font-size:13px;margin-top:6px;max-width:280px;">Опубликуйте первое видео — оно появится здесь после загрузки.</div></div>`;
         return;
       }
       if (currentFeedTab === 'following') {
@@ -325,8 +353,8 @@
           ? `<div class="video-cover"><img src="${escapeHtml(v.thumbnail)}" alt="" loading="lazy" decoding="async" /></div>`
           : `<div class="video-cover" aria-hidden="true"></div>`;
         const media = v.mediaType === 'image'
-          ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
-          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video src="${source}" loop ${!feedSoundEnabled ? 'muted' : ''} playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
+          ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
+          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop ${!feedSoundEnabled ? 'muted' : ''} playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
         const saveBadge = v.favorited ? ' saved' : '';
         card.innerHTML = `
@@ -418,34 +446,43 @@
         if (userTarget?.dataset.userid) openProfile(userTarget.dataset.userid);
       };
 
+      // Bind media events once per render, not from inside the observer callback.
+      container.querySelectorAll('.video-card video').forEach(video => {
+        if (video.dataset.mediaBound === '1') return;
+        video.dataset.mediaBound = '1';
+        video.addEventListener('playing', () => {
+          video.closest('.video-card')?.classList.add('video-started');
+        });
+        video.addEventListener('error', () => {
+          video.closest('.video-card')?.classList.remove('video-started');
+        });
+        updateProgress(video, video.closest('.video-card'));
+      });
+
       if (feedObserver) feedObserver.disconnect();
       feedObserver = new IntersectionObserver(entries => {
+        const viewport = Math.max(container.clientHeight || window.innerHeight || 1, 1);
         entries.forEach(entry => {
-          const media = entry.target.querySelector('video');
-          if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-            if (media && userSettings.autoplay) {
-              media.play().catch(() => {});
-              entry.target.querySelector('.video-pause-indicator')?.classList.remove('visible');
-              updateProgress(media, entry.target);
+          const card = entry.target;
+          const media = card.querySelector('video');
+          const closeEnough = Math.abs(entry.boundingClientRect.top) < viewport * 1.8 || Math.abs(entry.boundingClientRect.bottom - viewport) < viewport * 1.8;
+
+          if (entry.isIntersecting) {
+            if (media) {
+              loadFeedVideo(card, entry.intersectionRatio > 0.6 ? (userSettings.data_saver ? 'metadata' : 'auto') : 'metadata');
+              if (entry.intersectionRatio > 0.6 && userSettings.autoplay) {
+                media.play().catch(() => {});
+                card.querySelector('.video-pause-indicator')?.classList.remove('visible');
+              }
             }
-            recordView(entry.target.dataset.id);
+            if (entry.intersectionRatio > 0.6) recordView(card.dataset.id);
           } else if (media) {
             media.pause();
-            entry.target.querySelector('.video-pause-indicator')?.classList.remove('visible');
+            card.querySelector('.video-pause-indicator')?.classList.remove('visible');
+            if (!closeEnough) unloadFeedVideo(card);
           }
         });
-
-        container.querySelectorAll('.video-card video').forEach(video => {
-          if (video.dataset.coverBound === '1') return;
-          video.dataset.coverBound = '1';
-          video.addEventListener('playing', () => {
-            video.closest('.video-card')?.classList.add('video-started');
-          });
-          video.addEventListener('error', () => {
-            video.closest('.video-card')?.classList.remove('video-started');
-          });
-        });
-      }, { threshold: [0.6] });
+      }, { threshold: [0, 0.6], rootMargin: '120% 0px 120% 0px' });
       container.querySelectorAll('.video-card').forEach(card => feedObserver.observe(card));
 
       // renderFeed() can run many times. Replace the old gesture handler instead of
@@ -491,21 +528,36 @@
     }
 
     function updateProgress(video, card) {
+      if (!video || !card || video.dataset.progressBound === '1') return;
       const bar = card.querySelector('.video-progress .bar');
       if (!bar) return;
-      const update = () => {
-        if (video.duration) bar.style.width = `${(video.currentTime / video.duration) * 100}%`;
-        if (!video.paused) requestAnimationFrame(update);
+      video.dataset.progressBound = '1';
+      const render = () => {
+        if (video.duration) bar.style.width = `${Math.min(100, Math.max(0, (video.currentTime / video.duration) * 100))}%`;
       };
-      requestAnimationFrame(update);
+      video.addEventListener('timeupdate', render, { passive: true });
+      video.addEventListener('loadedmetadata', render, { passive: true });
+      render();
     }
 
     function playVisibleVideo() {
-      document.querySelectorAll('.video-card').forEach(card => {
-        const media = card.querySelector('video');
-        if (!media) return;
-        const rect = card.getBoundingClientRect();
-        if (userSettings.autoplay && rect.top >= -50 && rect.top < window.innerHeight / 2) media.play().catch(() => {}); else if (!userSettings.autoplay) media.pause(); else media.pause();
+      const container = document.getElementById('feedContainer');
+      if (!container) return;
+      const cards = container.querySelectorAll('.video-card');
+      if (!cards.length) return;
+
+      const height = Math.max(container.clientHeight || window.innerHeight || 1, 1);
+      const index = Math.max(0, Math.min(cards.length - 1, Math.round(container.scrollTop / height)));
+      const active = cards[index];
+      cards.forEach((card, i) => {
+        const video = card.querySelector('video');
+        if (!video) return;
+        if (card === active && userSettings.autoplay) {
+          loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
+          video.play().catch(() => {});
+        } else if (i !== index) {
+          video.pause();
+        }
       });
     }
 
@@ -626,6 +678,93 @@
       return `Посмотри это видео в «Смотрю» 🎬\n${title}${safeDesc}\n\n${url}\n\nПотрясающие видео из «Смотрю»`;
     }
 
+
+    const VIDEO_SELECT_FIELDS = 'id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username';
+
+    async function ensureVideoLoaded(id) {
+      const cleanId = String(id || '').trim();
+      if (!cleanId) return null;
+      const local = videos.find(v => String(v.id) === cleanId);
+      if (local) return local;
+      if (!remoteLoaded) return null;
+
+      try {
+        const { data, error } = await db.from('videos')
+          .select(VIDEO_SELECT_FIELDS)
+          .eq('id', cleanId)
+          .eq('status', 'published')
+          .eq('visibility', 'public')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) return null;
+
+        const authorId = data.user_id;
+        if (authorId && !profileCache.has(authorId)) {
+          const { data: profile } = await db.from('profiles')
+            .select('*')
+            .eq('id', authorId)
+            .maybeSingle();
+          if (profile) profileCache.set(authorId, userFromProfile(profile));
+        }
+
+        const mapped = normalizeVideo(data);
+        if (!videoAllowedBySettings(mapped) || mapped.author?.isBanned) return null;
+        if (mapped.author?.isPrivate && (!authUser || String(mapped.authorId) !== String(authUser.id)) && !followingIds.has(mapped.authorId)) return null;
+
+        if (authUser) {
+          mapped.subscribed = followingIds.has(mapped.authorId);
+          mapped.isFriend = friendIds.has(mapped.authorId);
+          const [likedResult, savedResult] = await Promise.all([
+            db.from('likes').select('video_id').eq('user_id', authUser.id).eq('video_id', cleanId).maybeSingle(),
+            db.from('saved_videos').select('video_id').eq('user_id', authUser.id).eq('video_id', cleanId).maybeSingle()
+          ]);
+          mapped.liked = Boolean(likedResult.data);
+          mapped.favorited = Boolean(savedResult.data);
+          mapped.isMine = String(mapped.authorId) === String(authUser.id);
+        }
+        videos = [mapped, ...videos.filter(v => String(v.id) !== cleanId)];
+        return mapped;
+      } catch (error) {
+        console.warn('ensureVideoLoaded failed:', error);
+        return null;
+      }
+    }
+
+    async function openVideoById(id, options = {}) {
+      const { updateHash = false, scroll = true } = options;
+      const video = await ensureVideoLoaded(id);
+      if (!video) {
+        showToast('Это видео недоступно или больше не существует.');
+        return false;
+      }
+
+      currentFeedTab = 'foryou';
+      updateTopTabs();
+      if (updateHash) {
+        const encoded = encodeURIComponent(String(video.id));
+        history.replaceState(history.state, document.title, `${window.location.pathname}${window.location.search}#video=${encoded}`);
+      }
+      showScreen('feed', { push: false });
+      renderFeed({ reshuffle: false });
+
+      requestAnimationFrame(() => {
+        const card = document.querySelector(`.video-card[data-id="${CSS.escape(String(video.id))}"]`);
+        if (!card) return;
+        if (scroll) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const media = card.querySelector('video');
+        if (media) media.play().catch(() => {});
+      });
+      return true;
+    }
+
+    async function handleVideoHash() {
+      const raw = String(window.location.hash || '');
+      const match = raw.match(/^#video=([^&]+)/i);
+      if (!match) return;
+      const id = decodeURIComponent(match[1]);
+      await openVideoById(id, { updateHash: false, scroll: true });
+    }
+
     async function registerVideoShare(id) {
       const v = videos.find(x => x.id === id);
       if (!v) return;
@@ -685,6 +824,10 @@
       const title = v.title || 'Видео из «Смотрю»';
       let targetUrl = '';
 
+      if (kind === 'friend') {
+        await openShareFriendModal(id);
+        return;
+      }
       if (kind === 'telegram') {
         targetUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text.replace(`\n\n${url}`, ''))}`;
       } else if (kind === 'whatsapp') {
