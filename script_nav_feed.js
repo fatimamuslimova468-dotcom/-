@@ -285,32 +285,91 @@
       try { return localStorage.getItem('smotriuFeedSound') === '1'; } catch (_) { return false; }
     })();
 
+    // Только один ролик ленты может быть источником звука/воспроизведения одновременно.
+    // Это предотвращает рассинхрон звука и ситуацию, когда слышно соседнее видео.
+    let activeFeedCard = null;
+
     function persistFeedSound() {
       try { localStorage.setItem('smotriuFeedSound', feedSoundEnabled ? '1' : '0'); } catch (_) {}
     }
 
+    function updateSoundButton(video, enabled) {
+      const button = video?.closest('.video-card')?.querySelector('.video-sound-btn');
+      if (!button) return;
+      button.innerHTML = icon(enabled ? 'volume' : 'volumeOff', 21);
+      button.setAttribute('aria-label', enabled ? 'Выключить звук' : 'Включить звук');
+      button.setAttribute('title', enabled ? 'Выключить звук' : 'Включить звук');
+    }
+
     function setVideoSound(video, enabled) {
       if (!video) return;
-      video.muted = !enabled;
-      video.volume = enabled ? 1 : 0;
-      const button = video.closest('.video-card')?.querySelector('.video-sound-btn');
-      if (button) {
-        button.innerHTML = icon(enabled ? 'volume' : 'volumeOff', 21);
-        button.setAttribute('aria-label', enabled ? 'Выключить звук' : 'Включить звук');
-        button.setAttribute('title', enabled ? 'Выключить звук' : 'Включить звук');
+      // Неактивные ролики всегда полностью беззвучны, даже когда общий звук включён.
+      const canHaveSound = activeFeedCard && video.closest('.video-card') === activeFeedCard && !video.paused;
+      const actualEnabled = Boolean(enabled && canHaveSound);
+      video.muted = !actualEnabled;
+      video.volume = actualEnabled ? 1 : 0;
+      updateSoundButton(video, activeFeedCard && video.closest('.video-card') === activeFeedCard ? Boolean(enabled) : false);
+    }
+
+    function syncFeedAudio() {
+      const root = document.getElementById('feedContainer');
+      if (!root) return;
+      root.querySelectorAll('.video-card video').forEach(video => setVideoSound(video, feedSoundEnabled));
+    }
+
+    function pauseFeedVideo(video, {manual = false} = {}) {
+      if (!video) return;
+      try { video.pause(); } catch (_) {}
+      if (manual) video.dataset.manualPaused = '1';
+      const card = video.closest('.video-card');
+      card?.querySelector('.video-pause-indicator')?.classList.toggle('visible', Boolean(manual));
+      if (card === activeFeedCard) activeFeedCard = null;
+      video.muted = true;
+      video.volume = 0;
+    }
+
+    function playFeedVideo(card, {manual = false} = {}) {
+      const video = card?.querySelector('video');
+      if (!video || currentScreenName !== 'feed') return;
+      if (!manual && video.dataset.manualPaused === '1') return;
+      if (manual) video.dataset.manualPaused = '0';
+
+      // Останавливаем любое другое видео до запуска нового.
+      const root = document.getElementById('feedContainer');
+      root?.querySelectorAll('.video-card video').forEach(other => {
+        if (other !== video) pauseFeedVideo(other);
+      });
+
+      activeFeedCard = card;
+      setVideoSound(video, feedSoundEnabled);
+      const playPromise = video.play();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {
+          if (activeFeedCard === card) activeFeedCard = null;
+          video.muted = true;
+          video.volume = 0;
+        });
       }
     }
 
     function toggleVideoSound(card) {
       const video = card?.querySelector('video');
       if (!video) return;
+      // Кнопка звука работает только с текущим роликом и никогда не запускает
+      // случайное соседнее видео.
       feedSoundEnabled = !feedSoundEnabled;
       persistFeedSound();
-      document.querySelectorAll('#feedContainer .video-card video').forEach(v => setVideoSound(v, feedSoundEnabled));
-      if (feedSoundEnabled) {
-        const playPromise = video.paused ? video.play() : Promise.resolve();
-        if (playPromise?.catch) playPromise.catch(() => {});
+      if (activeFeedCard !== card && !video.paused) {
+        activeFeedCard = card;
       }
+      if (activeFeedCard === card && !video.paused) {
+        setVideoSound(video, feedSoundEnabled);
+      } else {
+        video.muted = true;
+        video.volume = 0;
+        updateSoundButton(video, feedSoundEnabled);
+      }
+      syncFeedAudio();
     }
 
     function applyFeedSoundState(root = document) {
@@ -354,7 +413,7 @@
           : `<div class="video-cover" aria-hidden="true"></div>`;
         const media = v.mediaType === 'image'
           ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
-          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop ${!feedSoundEnabled ? 'muted' : ''} playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
+          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop muted playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
         const saveBadge = v.favorited ? ' saved' : '';
         card.innerHTML = `
@@ -408,6 +467,7 @@
       endMessage.innerHTML = `<div class="end-title">Видео больше нет</div><div class="end-subtitle">Вы дошли до конца ленты</div>`;
       container.appendChild(endMessage);
 
+      activeFeedCard = null;
       setupMediaLoading(container);
       hydrateIcons(container);
       applyFeedSoundState(container);
@@ -450,8 +510,28 @@
       container.querySelectorAll('.video-card video').forEach(video => {
         if (video.dataset.mediaBound === '1') return;
         video.dataset.mediaBound = '1';
+        video.addEventListener('play', () => {
+          const card = video.closest('.video-card');
+          if (!card || currentScreenName !== 'feed') return;
+          // Даже если play() был вызван из другого участка кода, не допускаем
+          // одновременного воспроизведения нескольких роликов.
+          if (activeFeedCard && activeFeedCard !== card) {
+            const previous = activeFeedCard.querySelector('video');
+            if (previous) pauseFeedVideo(previous);
+          }
+          activeFeedCard = card;
+          syncFeedAudio();
+        });
+        video.addEventListener('pause', () => {
+          if (activeFeedCard === video.closest('.video-card')) {
+            activeFeedCard = null;
+            video.muted = true;
+            video.volume = 0;
+          }
+        });
         video.addEventListener('playing', () => {
           video.closest('.video-card')?.classList.add('video-started');
+          syncFeedAudio();
         });
         video.addEventListener('error', () => {
           video.closest('.video-card')?.classList.remove('video-started');
@@ -462,26 +542,54 @@
       if (feedObserver) feedObserver.disconnect();
       feedObserver = new IntersectionObserver(entries => {
         const viewport = Math.max(container.clientHeight || window.innerHeight || 1, 1);
+        let bestEntry = null;
+
+        // Сначала выбираем только один наиболее видимый ролик. Иначе браузер может
+        // обработать несколько entry подряд и включить звук следующего видео.
         entries.forEach(entry => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.6 &&
+              (!bestEntry || entry.intersectionRatio > bestEntry.intersectionRatio)) {
+            bestEntry = entry;
+          }
+        });
+
+        // Важный порядок: сначала останавливаем всё, кроме кандидата, и только
+        // после этого запускаем кандидата. Так pause() старого видео не сможет
+        // сбросить состояние нового активного ролика.
+        entries.forEach(entry => {
+          if (entry === bestEntry) return;
           const card = entry.target;
           const media = card.querySelector('video');
           const closeEnough = Math.abs(entry.boundingClientRect.top) < viewport * 1.8 || Math.abs(entry.boundingClientRect.bottom - viewport) < viewport * 1.8;
+          if (!media) return;
+          pauseFeedVideo(media);
+          if (entry.intersectionRatio <= 0.6) {
+            card.querySelector('.video-pause-indicator')?.classList.remove('visible');
+          }
+          if (!closeEnough) unloadFeedVideo(card);
+        });
 
-          if (entry.isIntersecting) {
-            if (media) {
-              loadFeedVideo(card, entry.intersectionRatio > 0.6 ? (userSettings.data_saver ? 'metadata' : 'auto') : 'metadata');
-              if (entry.intersectionRatio > 0.6 && userSettings.autoplay) {
-                media.play().catch(() => {});
+        if (bestEntry) {
+          const card = bestEntry.target;
+          const media = card.querySelector('video');
+          if (media) {
+            if (media.dataset.manualPaused === '1') {
+              // Пользователь сам поставил этот ролик на паузу — не запускаем его
+              // автоматически и одновременно глушим старый активный ролик.
+              pauseFeedVideo(media);
+              activeFeedCard = null;
+            } else {
+              loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
+              if (userSettings.autoplay) {
+                playFeedVideo(card);
                 card.querySelector('.video-pause-indicator')?.classList.remove('visible');
               }
             }
-            if (entry.intersectionRatio > 0.6) recordView(card.dataset.id);
-          } else if (media) {
-            media.pause();
-            card.querySelector('.video-pause-indicator')?.classList.remove('visible');
-            if (!closeEnough) unloadFeedVideo(card);
+            recordView(card.dataset.id);
           }
-        });
+        }
+
+        syncFeedAudio();
       }, { threshold: [0, 0.6], rootMargin: '120% 0px 120% 0px' });
       container.querySelectorAll('.video-card').forEach(card => feedObserver.observe(card));
 
@@ -522,9 +630,13 @@
     function toggleVideoPause(card) {
       const video = card?.querySelector('video');
       if (!video) return;
-      if (video.paused) video.play().catch(() => {});
-      else video.pause();
-      card.querySelector('.video-pause-indicator')?.classList.toggle('visible', video.paused);
+      if (video.paused) {
+        playFeedVideo(card, { manual: true });
+        card.querySelector('.video-pause-indicator')?.classList.remove('visible');
+      } else {
+        pauseFeedVideo(video, { manual: true });
+      }
+      syncFeedAudio();
     }
 
     function updateProgress(video, card) {
@@ -549,20 +661,29 @@
       const height = Math.max(container.clientHeight || window.innerHeight || 1, 1);
       const index = Math.max(0, Math.min(cards.length - 1, Math.round(container.scrollTop / height)));
       const active = cards[index];
+      // Сначала останавливаем соседние ролики, затем запускаем активный.
       cards.forEach((card, i) => {
+        if (i === index) return;
         const video = card.querySelector('video');
-        if (!video) return;
-        if (card === active && userSettings.autoplay) {
-          loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
-          video.play().catch(() => {});
-        } else if (i !== index) {
-          video.pause();
-        }
+        if (video) pauseFeedVideo(video);
       });
+      const activeVideo = active?.querySelector('video');
+      if (activeVideo && userSettings.autoplay && activeVideo.dataset.manualPaused !== '1') {
+        loadFeedVideo(active, userSettings.data_saver ? 'metadata' : 'auto');
+        playFeedVideo(active);
+      }
+      syncFeedAudio();
     }
 
     function pauseAllVideos() {
-      document.querySelectorAll('video').forEach(v => { if (v.id !== 'cameraPreview') v.pause(); });
+      activeFeedCard = null;
+      document.querySelectorAll('video').forEach(v => {
+        if (v.id !== 'cameraPreview') {
+          try { v.pause(); } catch (_) {}
+          v.muted = true;
+          v.volume = 0;
+        }
+      });
     }
 
     async function recordView(videoId) {

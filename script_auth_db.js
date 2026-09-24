@@ -22,6 +22,10 @@
         : 'Ваши видео, лайки и подписки — в одном месте.';
       document.getElementById('authSubmit').textContent = mode === 'signup' ? 'Создать аккаунт' : 'Войти';
       document.getElementById('authNameField').classList.toggle('hidden', mode !== 'signup');
+      const agreement = document.getElementById('authAgreement');
+      const agreementCheckbox = document.getElementById('authAgreementCheckbox');
+      if (agreement) agreement.classList.toggle('hidden', mode !== 'signup');
+      if (mode !== 'signup' && agreementCheckbox) agreementCheckbox.checked = false;
       document.getElementById('authPassword').autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
     }
 
@@ -34,12 +38,34 @@
         showToast('Введите email и пароль.');
         return;
       }
+      if (authMode === 'signup') {
+        const agreementCheckbox = document.getElementById('authAgreementCheckbox');
+        if (!agreementCheckbox?.checked) {
+          const authError = document.getElementById('authError');
+          if (authError) authError.textContent = 'Для регистрации нужно принять Пользовательское соглашение.';
+          agreementCheckbox?.focus();
+          return;
+        }
+      }
       btn.disabled = true;
       btn.textContent = 'Проверяем…';
       try {
         let result;
         if (authMode === 'signup') {
-          result = await db.auth.signUp({ email, password, options: { data: { display_name: name || email.split('@')[0] }, emailRedirectTo: getAuthRedirectUrl() } });
+          const agreementAcceptedAt = new Date().toISOString();
+          result = await db.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                display_name: name || email.split('@')[0],
+                user_agreement_accepted: true,
+                user_agreement_version: '2026-09-24',
+                user_agreement_accepted_at: agreementAcceptedAt
+              },
+              emailRedirectTo: getAuthRedirectUrl()
+            }
+          });
           if (result.error) throw result.error;
           if (!result.data.session) {
             pendingConfirmationEmail = email;
@@ -86,8 +112,20 @@
     }
 
 
+    function openUserAgreement() {
+      const modal = document.getElementById('userAgreementModal');
+      if (!modal) return;
+      modal.classList.add('visible');
+      hydrateIcons(modal);
+    }
+
+    function closeUserAgreement() {
+      document.getElementById('userAgreementModal')?.classList.remove('visible');
+    }
+
+
     function setPasswordRecoveryStep(step) {
-      const safeStep = Math.max(1, Math.min(3, Number(step) || 1));
+      const safeStep = Math.max(1, Math.min(2, Number(step) || 1));
       document.querySelectorAll('[data-recovery-step]').forEach(section => {
         section.classList.toggle('active', Number(section.dataset.recoveryStep) === safeStep);
       });
@@ -98,51 +136,20 @@
 
       const title = document.getElementById('passwordRecoveryTitle');
       const subtitle = document.getElementById('passwordRecoverySubtitle');
-      if (title) title.textContent = safeStep === 1 ? 'Восстановление доступа' : safeStep === 2 ? 'Введите код' : 'Новый пароль';
+      if (title) title.textContent = safeStep === 1 ? 'Восстановление доступа' : 'Новый пароль';
       if (subtitle) subtitle.textContent = safeStep === 1
-        ? 'Укажите почту аккаунта — мы отправим одноразовый код для восстановления доступа.'
-        : safeStep === 2
-          ? 'Введите код из письма, чтобы подтвердить, что это ваша почта.'
-          : 'Придумайте новый пароль и повторите его ещё раз.';
+        ? 'Укажите почту — мы отправим безопасную ссылку для смены пароля.'
+        : 'Ссылка из письма уже подтвердила вашу почту. Придумайте новый пароль и повторите его ещё раз.';
 
       const modal = document.getElementById('passwordResetModal');
       if (modal) hydrateIcons(modal);
     }
 
     function clearRecoveryMessages() {
-      ['passwordResetError','recoveryCodeError','recoveryPasswordError'].forEach(id => {
+      ['passwordResetError','recoveryPasswordError'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = '';
       });
-    }
-
-    function stopRecoveryResendTimer() {
-      if (recoveryResendTimer) {
-        clearInterval(recoveryResendTimer);
-        recoveryResendTimer = null;
-      }
-    }
-
-    function startRecoveryResendTimer() {
-      stopRecoveryResendTimer();
-      const btn = document.getElementById('recoveryResendBtn');
-      const hint = document.getElementById('recoveryResendHint');
-      if (!btn || !hint) return;
-      let left = 60;
-      btn.disabled = true;
-      btn.textContent = `Отправить код снова · ${left}s`;
-      hint.textContent = 'Повторная отправка доступна через минуту.';
-      recoveryResendTimer = setInterval(() => {
-        left -= 1;
-        if (left <= 0) {
-          stopRecoveryResendTimer();
-          btn.disabled = false;
-          btn.textContent = 'Отправить код снова';
-          hint.textContent = 'Можно запросить новый код.';
-          return;
-        }
-        btn.textContent = `Отправить код снова · ${left}s`;
-      }, 1000);
     }
 
     function openPasswordResetModal(prefillEmail = '') {
@@ -152,12 +159,10 @@
       recoveryVerified = false;
       clearRecoveryMessages();
       const email = document.getElementById('recoveryEmail');
-      const code = document.getElementById('recoveryCode');
       const p1 = document.getElementById('newPassword');
       const p2 = document.getElementById('newPasswordRepeat');
       const chip = document.getElementById('recoveryEmailChip');
       if (email) email.value = recoveryEmail;
-      if (code) code.value = '';
       if (p1) p1.value = '';
       if (p2) p2.value = '';
       if (chip) chip.textContent = recoveryEmail || '—';
@@ -173,9 +178,10 @@
       openPasswordResetModal(prefill);
     }
 
-    async function sendRecoveryCode(showStep = true) {
+    async function sendRecoveryCode() {
       const emailInput = document.getElementById('recoveryEmail');
       const err = document.getElementById('passwordResetError');
+      const hint = document.getElementById('recoverySendHint');
       const btn = document.getElementById('recoverySendBtn');
       const email = String(emailInput?.value || '').trim().toLowerCase();
       if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
@@ -186,71 +192,18 @@
       recoveryEmail = email;
       const chip = document.getElementById('recoveryEmailChip');
       if (chip) chip.textContent = email;
-      if (btn) { btn.disabled = true; btn.textContent = 'Отправляем код…'; }
+      if (btn) { btn.disabled = true; btn.textContent = 'Отправляем…'; }
       if (err) err.textContent = '';
       try {
         const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirectUrl() });
         if (error) throw error;
-        showStep ? setPasswordRecoveryStep(2) : null;
-        startRecoveryResendTimer();
-        showToast('Если этот email зарегистрирован, код уже отправлен.');
-        setTimeout(() => document.getElementById('recoveryCode')?.focus(), 60);
+        if (hint) hint.textContent = `Ссылка отправлена на ${email}. Откройте письмо и нажмите её — код вводить не нужно.`;
+        showToast('Ссылка для смены пароля отправлена на почту.');
       } catch (error) {
         console.error('Password reset request error:', error);
-        if (err) err.textContent = error?.message || 'Не удалось отправить код. Попробуйте ещё раз.';
+        if (err) err.textContent = error?.message || 'Не удалось отправить ссылку. Попробуйте ещё раз.';
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Получить код'; }
-      }
-    }
-
-    async function verifyRecoveryCode() {
-      const token = String(document.getElementById('recoveryCode')?.value || '').replace(/\D/g, '').trim();
-      const err = document.getElementById('recoveryCodeError');
-      const btn = document.getElementById('recoveryVerifyBtn');
-      if (!recoveryEmail) {
-        setPasswordRecoveryStep(1);
-        return;
-      }
-      if (token.length < 6) {
-        if (err) err.textContent = 'Введите код из письма.';
-        document.getElementById('recoveryCode')?.focus();
-        return;
-      }
-      if (btn) { btn.disabled = true; btn.textContent = 'Проверяем…'; }
-      if (err) err.textContent = '';
-      try {
-        const { data, error } = await db.auth.verifyOtp({ email: recoveryEmail, token, type: 'recovery' });
-        if (error) throw error;
-        if (!data?.session?.user) throw new Error('Не удалось открыть защищённую сессию восстановления.');
-        authUser = data.session.user;
-        recoveryVerified = true;
-        stopRecoveryResendTimer();
-        setPasswordRecoveryStep(3);
-        setTimeout(() => document.getElementById('newPassword')?.focus(), 60);
-      } catch (error) {
-        console.error('Password recovery OTP error:', error);
-        if (err) err.textContent = error?.message || 'Код неверный или уже истёк. Запросите новый код.';
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Проверить код'; }
-      }
-    }
-
-    async function resendRecoveryCode() {
-      if (!recoveryEmail) return;
-      const btn = document.getElementById('recoveryResendBtn');
-      const hint = document.getElementById('recoveryResendHint');
-      if (btn?.disabled) return;
-      if (btn) { btn.disabled = true; btn.textContent = 'Отправляем…'; }
-      if (hint) hint.textContent = '';
-      try {
-        const { error } = await db.auth.resetPasswordForEmail(recoveryEmail, { redirectTo: getAuthRedirectUrl() });
-        if (error) throw error;
-        showToast('Новый код отправлен на почту.');
-        startRecoveryResendTimer();
-      } catch (error) {
-        console.error('Recovery resend error:', error);
-        if (hint) hint.textContent = error?.message || 'Не удалось отправить новый код.';
-        if (btn) { btn.disabled = false; btn.textContent = 'Отправить код снова'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Получить ссылку'; }
       }
     }
 
@@ -425,9 +378,9 @@
       const p2 = document.getElementById('newPasswordRepeat').value;
       const err = document.getElementById('recoveryPasswordError');
       const btn = document.getElementById('passwordResetBtn');
-      if (!recoveryVerified && !authUser) {
-        err.textContent = 'Сначала подтвердите код из письма.';
-        setPasswordRecoveryStep(2);
+      if (!authUser) {
+        err.textContent = 'Сначала откройте ссылку для смены пароля из письма.';
+        setPasswordRecoveryStep(1);
         return;
       }
       if (p1.length < 6) { err.textContent = 'Пароль должен содержать минимум 6 символов.'; return; }

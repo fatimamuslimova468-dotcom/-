@@ -569,6 +569,45 @@
       }
     }
     function addEmojiToComment(emoji){ const input=document.getElementById('commentInput'); if(!input)return; input.value += emoji; input.focus(); }
+    function openStickerViewer(stickerId, stickerUrl, stickerName='Стикер'){
+      const modal=document.getElementById('stickerViewerModal');
+      const stage=document.getElementById('stickerViewerStage');
+      const title=document.getElementById('stickerViewerTitle');
+      if(!modal || !stage) return;
+      let markup='';
+      if(stickerUrl){
+        markup=`<img class="sticker-viewer-image" src="${escapeHtml(stickerUrl)}" alt="${escapeHtml(stickerName)}" />`;
+      } else if(stickerId && stickerById(stickerId)){
+        markup=stickerById(stickerId).svg.replace('<svg ', '<svg class="sticker-viewer-svg" ');
+      }
+      if(!markup) return;
+      stage.innerHTML=markup;
+      if(title) title.textContent=stickerName || 'Стикер';
+      modal.classList.add('visible');
+    }
+    function closeStickerViewer(){
+      const modal=document.getElementById('stickerViewerModal');
+      const stage=document.getElementById('stickerViewerStage');
+      if(modal) modal.classList.remove('visible');
+      if(stage) stage.innerHTML='';
+    }
+    async function hideCommentById(commentId){
+      const id=String(commentId||'');
+      if(!id) return;
+      const user=await requireAuth('скрыть комментарий');
+      if(!user) return;
+      try{
+        const {error}=await db.from('hidden_comments').upsert({user_id:user.id,comment_id:id},{onConflict:'user_id,comment_id'});
+        if(error) throw error;
+        hiddenCommentIds.add(id);
+        if(currentCommentContextId===id) closeCommentContext();
+        await openComments(currentCommentsVideoId);
+        showToast('Комментарий скрыт для вас.');
+      }catch(error){
+        console.error(error);
+        showToast('Не удалось скрыть комментарий.');
+      }
+    }
     function openCommentContext(commentId,stickerId,stickerUrl,x,y){
       const menu=document.getElementById('commentContextMenu'); if(!menu)return;
       currentCommentContextId=commentId; currentCommentContextStickerId=stickerId; currentCommentContextStickerUrl=stickerUrl || ''; menu.classList.add('visible');
@@ -576,9 +615,8 @@
     }
     function closeCommentContext(){ const menu=document.getElementById('commentContextMenu'); menu?.classList.remove('visible'); currentCommentContextId=null; currentCommentContextStickerId=null; currentCommentContextStickerUrl=''; }
     async function hideCurrentComment(){
-      const user=await requireAuth('скрыть комментарий'); if(!user||!currentCommentContextId)return;
-      try{ const {error}=await db.from('hidden_comments').upsert({user_id:user.id,comment_id:currentCommentContextId},{onConflict:'user_id,comment_id'}); if(error)throw error; hiddenCommentIds.add(currentCommentContextId); closeCommentContext(); await openComments(currentCommentsVideoId); showToast('Комментарий скрыт для вас.'); }
-      catch(error){ console.error(error); showToast('Не удалось скрыть комментарий.'); }
+      if(!currentCommentContextId) return;
+      await hideCommentById(currentCommentContextId);
     }
     async function saveCurrentSticker(){
       const user=await requireAuth('сохранить стикер'); if(!user||!currentCommentContextStickerId)return;
@@ -668,6 +706,8 @@
       document.getElementById('hideCommentAction').addEventListener('click', hideCurrentComment);
       document.getElementById('saveStickerAction').addEventListener('click', saveCurrentSticker);
       document.getElementById('cancelCommentContext').addEventListener('click', closeCommentContext);
+      document.getElementById('stickerViewerClose')?.addEventListener('click', closeStickerViewer);
+      document.getElementById('stickerViewerModal')?.addEventListener('click', e => { if(e.target === e.currentTarget) closeStickerViewer(); });
       document.getElementById('chatSendBtn')?.addEventListener('click', sendChatMessage);
       document.getElementById('chatBackBtn')?.addEventListener('click', closeDirectChat);
       document.getElementById('chatCloseBtn')?.addEventListener('click', closeDirectChat);
@@ -676,19 +716,16 @@
       document.querySelectorAll('.auth-tab').forEach(t => t.addEventListener('click', () => setAuthMode(t.dataset.authMode)));
       document.getElementById('authSubmit').addEventListener('click', submitAuth);
       document.getElementById('authClose').addEventListener('click', closeModals);
+      document.getElementById('authAgreementLink')?.addEventListener('click', openUserAgreement);
+      document.getElementById('userAgreementClose')?.addEventListener('click', closeUserAgreement);
+      document.getElementById('userAgreementDone')?.addEventListener('click', closeUserAgreement);
       document.getElementById('emailResendBtn').addEventListener('click', resendConfirmationEmail);
       document.getElementById('emailCancelBtn').addEventListener('click', closeModals);
       document.getElementById('authForgot').addEventListener('click', sendPasswordReset);
-      document.getElementById('recoverySendBtn').addEventListener('click', () => sendRecoveryCode(true));
-      document.getElementById('recoveryVerifyBtn').addEventListener('click', verifyRecoveryCode);
-      document.getElementById('recoveryResendBtn').addEventListener('click', resendRecoveryCode);
-      document.getElementById('recoveryBackToEmailBtn').addEventListener('click', () => { stopRecoveryResendTimer(); setPasswordRecoveryStep(1); });
-      document.getElementById('recoveryBackToCodeBtn').addEventListener('click', () => { setPasswordRecoveryStep(2); setTimeout(() => document.getElementById('recoveryCode')?.focus(), 40); });
+      document.getElementById('recoverySendBtn').addEventListener('click', sendRecoveryCode);
       document.getElementById('passwordResetBtn').addEventListener('click', saveNewPassword);
       document.getElementById('passwordResetCancelBtn').addEventListener('click', () => { stopRecoveryResendTimer(); closeModals(); });
-      document.getElementById('recoveryCode').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8); });
-      document.getElementById('recoveryCode').addEventListener('keydown', e => { if (e.key === 'Enter') verifyRecoveryCode(); });
-      document.getElementById('recoveryEmail').addEventListener('keydown', e => { if (e.key === 'Enter') sendRecoveryCode(true); });
+      document.getElementById('recoveryEmail').addEventListener('keydown', e => { if (e.key === 'Enter') sendRecoveryCode(); });
       document.getElementById('newPasswordRepeat').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewPassword(); });
       document.getElementById('profileEditClose').addEventListener('click', closeModals);
       document.getElementById('profileEditCancel').addEventListener('click', closeModals);
@@ -706,7 +743,7 @@
       document.addEventListener('click', e => { if (!e.target.closest('#commentContextMenu') && !e.target.closest('.comment-item')) closeCommentContext(); });
       document.addEventListener('contextmenu', e => {
         const item=e.target.closest('.comment-item[data-comment-id]');
-        if(!item || item.dataset.commentType!=='sticker') return;
+        if(!item) return;
         e.preventDefault(); openCommentContext(item.dataset.commentId,item.dataset.stickerId,item.dataset.stickerUrl,e.clientX,e.clientY);
       });
       document.addEventListener('touchstart', e => {
@@ -717,7 +754,7 @@
       ['touchend','touchmove','touchcancel'].forEach(type=>document.addEventListener(type,()=>{if(commentLongPressTimer){clearTimeout(commentLongPressTimer);commentLongPressTimer=null;}},{passive:true}));
     }
 
-    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; currentDownloadVideoId = null; }
+    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); closeStickerViewer(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; currentDownloadVideoId = null; }
     function openSpeedModal() { closeModals(); document.getElementById('speedModal').classList.add('visible'); }
     function openMore(videoId) {
       currentMoreVideoId = videoId;
@@ -1420,14 +1457,20 @@
           const type = c.comment_type || (c.sticker_id ? 'sticker' : 'text');
           const count = Number(c.likes_count || 0);
           const liked = likedCommentIds.has(c.id);
-          const content = type === 'sticker' && c.sticker_id ? (c.sticker_url ? `<div class="comment-sticker"><img src="${escapeHtml(c.sticker_url)}" alt="Стикер" /></div>` : `<div class="comment-sticker">${stickerSvg(c.sticker_id,74)}</div>`) : `<div class="c-text comment-textual">${escapeHtml(c.text || c.content || '')}</div>`;
-          return `<div class="comment-item" data-comment-id="${escapeHtml(c.id)}" data-comment-type="${escapeHtml(type)}" data-sticker-id="${escapeHtml(c.sticker_id || '')}" data-sticker-url="${escapeHtml(c.sticker_url || '')}"><div class="c-avatar comment-author-avatar" data-userid="${escapeHtml(c.user_id || '')}" role="button" tabindex="0" aria-label="Открыть профиль ${escapeHtml(u.name)}"><img src="${escapeHtml(u.avatar)}" alt="" /></div><div class="comment-main"><div class="c-name">${escapeHtml(u.name)}</div>${content}<div class="comment-actions"><button type="button" class="comment-like-btn ${liked?'liked':''}" data-comment-like="${escapeHtml(c.id)}" data-count="${count}" aria-label="Нравится">${icon(liked?'heartFill':'heart',16)} <span>${formatCount(count)}</span></button></div></div></div>`;
+          const content = type === 'sticker' && c.sticker_id ? (c.sticker_url ? `<button type="button" class="comment-sticker" data-sticker-view-url="${escapeHtml(c.sticker_url)}" data-sticker-view-id="${escapeHtml(c.sticker_id)}" aria-label="Открыть стикер на весь экран"><img src="${escapeHtml(c.sticker_url)}" alt="Стикер" /></button>` : `<button type="button" class="comment-sticker" data-sticker-view-id="${escapeHtml(c.sticker_id)}" aria-label="Открыть стикер на весь экран">${stickerSvg(c.sticker_id,74)}</button>`) : `<div class="c-text comment-textual">${escapeHtml(c.text || c.content || '')}</div>`;
+          return `<div class="comment-item" data-comment-id="${escapeHtml(c.id)}" data-comment-type="${escapeHtml(type)}" data-sticker-id="${escapeHtml(c.sticker_id || '')}" data-sticker-url="${escapeHtml(c.sticker_url || '')}"><div class="c-avatar comment-author-avatar" data-userid="${escapeHtml(c.user_id || '')}" role="button" tabindex="0" aria-label="Открыть профиль ${escapeHtml(u.name)}"><img src="${escapeHtml(u.avatar)}" alt="" /></div><div class="comment-main"><div class="c-name">${escapeHtml(u.name)}</div>${content}<div class="comment-actions"><button type="button" class="comment-like-btn ${liked?'liked':''}" data-comment-like="${escapeHtml(c.id)}" data-count="${count}" aria-label="Нравится">${icon(liked?'heartFill':'heart',16)} <span>${formatCount(count)}</span></button><button type="button" class="comment-hide-btn" data-hide-comment="${escapeHtml(c.id)}" aria-label="Скрыть комментарий">${icon('eye',16)} <span>Скрыть</span></button></div></div></div>`;
         }).join('');
         const emptyRegular = `<div class="empty-state" style="padding:18px 10px"><div class="icon">${icon('message',30)}</div><div>${visible.length ? '' : 'Пока нет обычных комментариев.'}</div></div>`;
         const donationsMarkup = renderDonationSection(donationEvents);
         list.innerHTML = `${donationsMarkup}${visible.length ? regularMarkup : emptyRegular}`;
         hydrateIcons(list);
-        list.querySelectorAll('[data-comment-like]').forEach(btn => btn.addEventListener('click', () => toggleCommentLike(btn.dataset.commentLike)));
+        list.querySelectorAll('[data-comment-like]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); toggleCommentLike(btn.dataset.commentLike); }));
+        list.querySelectorAll('[data-hide-comment]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); hideCommentById(btn.dataset.hideComment); }));
+        list.querySelectorAll('[data-sticker-view-id]').forEach(sticker => {
+          const open=()=>openStickerViewer(sticker.dataset.stickerViewId, sticker.dataset.stickerViewUrl || '', sticker.dataset.stickerViewName || 'Стикер');
+          sticker.addEventListener('click', e => { e.stopPropagation(); open(); });
+          sticker.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); open(); } });
+        });
         list.querySelectorAll('.comment-author-avatar[data-userid]').forEach(avatar => {
           avatar.addEventListener('click', e => { e.stopPropagation(); openProfile(avatar.dataset.userid); });
           avatar.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProfile(avatar.dataset.userid); } });
@@ -1503,7 +1546,7 @@
           recoveryVerified = true;
           openPasswordResetModal(session.user.email || '');
           recoveryVerified = true;
-          setPasswordRecoveryStep(3);
+          setPasswordRecoveryStep(2);
         }, 0);
       }
       setTimeout(async () => {

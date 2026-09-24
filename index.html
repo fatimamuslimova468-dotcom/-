@@ -5,11 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Смотрю</title>
   <script>
-    // Production domain: https://smotru.zapto.org
-    // Supabase is intentionally same-origin under /supabase so the browser never
-    // needs to connect directly to *.supabase.co.
-    // Keep this empty; the reverse proxy on smotru.zapto.org handles /supabase/*.
-    window.SMOTRY_CONFIG = Object.assign({ SUPABASE_URL: '' }, window.SMOTRY_CONFIG || {});
+    // Optional override. Without it the app connects directly to the Supabase project.
+    window.SMOTRY_CONFIG = Object.assign({ SUPABASE_URL: 'https://xzaryhtrzdjrrqgrowkv.supabase.co' }, window.SMOTRY_CONFIG || {});
+  </script>
+  <script>
+    // WebView/mobile viewport guard: keep the app and feed inside the actual visible viewport.
+    (() => {
+      const updateViewportUnit = () => {
+        const vv = window.visualViewport;
+        const height = Math.max(1, Math.round(vv?.height || window.innerHeight || document.documentElement.clientHeight || 1));
+        const width = Math.max(1, Math.round(vv?.width || window.innerWidth || document.documentElement.clientWidth || 1));
+        document.documentElement.style.setProperty('--app-height', `${height}px`);
+        document.documentElement.style.setProperty('--app-width', `${width}px`);
+      };
+      updateViewportUnit();
+      window.addEventListener('resize', updateViewportUnit, { passive: true });
+      window.addEventListener('orientationchange', () => setTimeout(updateViewportUnit, 80), { passive: true });
+      window.visualViewport?.addEventListener('resize', updateViewportUnit, { passive: true });
+      window.visualViewport?.addEventListener('scroll', updateViewportUnit, { passive: true });
+    })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
   <link rel="stylesheet" href="style_core.css">
@@ -340,6 +354,16 @@
       </div>
     </div>
 
+    <div class="modal-overlay sticker-viewer-overlay" id="stickerViewerModal" aria-hidden="true">
+      <div class="sticker-viewer-sheet" role="dialog" aria-modal="true" aria-labelledby="stickerViewerTitle">
+        <div class="sticker-viewer-head">
+          <div class="sticker-viewer-title" id="stickerViewerTitle">Стикер</div>
+          <button type="button" class="sticker-viewer-close" id="stickerViewerClose" aria-label="Закрыть"><span data-icon="close"></span></button>
+        </div>
+        <div class="sticker-viewer-stage" id="stickerViewerStage"></div>
+      </div>
+    </div>
+
     <div class="comment-context-menu" id="commentContextMenu">
       <button type="button" id="hideCommentAction"><span data-icon="eye"></span> Скрыть комментарий</button>
       <button type="button" id="saveStickerAction"><span data-icon="bookmark"></span> Сохранить стикер</button>
@@ -411,9 +435,38 @@
           <input id="authPassword" type="password" autocomplete="current-password" placeholder="Минимум 6 символов" minlength="6" />
         </div>
         <div class="auth-note" id="authNote">Для лайков, подписок, комментариев и публикаций нужен аккаунт.</div>
+        <div class="auth-agreement hidden" id="authAgreement">
+          <label class="auth-agreement-check">
+            <input id="authAgreementCheckbox" type="checkbox" />
+            <span class="auth-checkbox-ui" aria-hidden="true"></span>
+            <span>Я принимаю <button class="auth-agreement-link" id="authAgreementLink" type="button">Пользовательское соглашение</button></span>
+          </label>
+        </div>
         <button class="auth-submit" id="authSubmit">Войти</button>
         <button class="auth-forgot" id="authForgot" type="button">Забыли пароль?</button>
         <div class="auth-error" id="authError" role="alert"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay auth-centered" id="userAgreementModal">
+      <div class="modal-sheet agreement-sheet" role="dialog" aria-modal="true" aria-labelledby="agreementTitle">
+        <button class="auth-close agreement-close" id="userAgreementClose" type="button" aria-label="Закрыть"><span data-icon="close"></span></button>
+        <div class="handle"></div>
+        <div class="agreement-badge"><span data-icon="shield"></span></div>
+        <h3 id="agreementTitle">Пользовательское соглашение</h3>
+        <div class="agreement-updated">Актуальная версия: 24 сентября 2026 года</div>
+        <div class="agreement-content">
+          <p><strong>1. Общие положения.</strong> Настоящее соглашение регулирует использование сервиса «Смотрю». Используя сервис, вы подтверждаете, что ознакомились с условиями и обязуетесь их соблюдать.</p>
+          <p><strong>2. Аккаунт.</strong> Пользователь отвечает за достоверность предоставленных данных и за сохранность доступа к своему аккаунту. Нельзя передавать доступ третьим лицам, выдавая их действия за свои.</p>
+          <p><strong>3. Публикации и комментарии.</strong> Пользователь сохраняет права на размещаемый им контент и предоставляет сервису необходимые права для технического хранения, обработки и показа этого контента в рамках работы «Смотрю».</p>
+          <p><strong>4. Запрещённый контент.</strong> Нельзя размещать незаконные материалы, контент, нарушающий права третьих лиц, вредоносные файлы, спам, мошеннические материалы и публикации, которые нарушают правила сервиса или применимое законодательство.</p>
+          <p><strong>5. Модерация.</strong> Сервис вправе скрывать, удалять или ограничивать доступ к материалам и аккаунтам при нарушении настоящего соглашения, правил платформы или требований закона.</p>
+          <p><strong>6. Работа сервиса.</strong> Отдельные функции могут изменяться, временно становиться недоступными или прекращаться. Сервис не обещает постоянную доступность всех функций и сохранность пользовательского контента при технических сбоях.</p>
+          <p><strong>7. Ответственность.</strong> Пользователь самостоятельно отвечает за законность опубликованных материалов, свои действия и предоставленные данные. Использование сервиса осуществляется с учётом применимого законодательства.</p>
+          <p><strong>8. Изменение условий.</strong> Текст соглашения может обновляться. Новая редакция применяется после её публикации в сервисе, если иное не требуется законом.</p>
+          <p class="agreement-template-note">Юридические реквизиты владельца сервиса, контакты для обращений и специальные условия обработки данных при необходимости следует добавить в эту редакцию перед публичным запуском.</p>
+        </div>
+        <button class="agreement-done" id="userAgreementDone" type="button">Понятно</button>
       </div>
     </div>
 
@@ -436,47 +489,29 @@
       <div class="modal-sheet email-confirm-sheet password-reset-sheet">
         <div class="email-confirm-icon"><span data-icon="lock"></span></div>
         <h3 id="passwordRecoveryTitle">Восстановление доступа</h3>
-        <div class="email-confirm-text" id="passwordRecoverySubtitle">Сначала укажите почту, затем введите код из письма и задайте новый пароль.</div>
+        <div class="email-confirm-text" id="passwordRecoverySubtitle">Укажите почту — мы отправим безопасную ссылку для смены пароля.</div>
         <div class="recovery-progress" aria-hidden="true">
           <div class="recovery-progress-item active" data-recovery-progress="1"></div>
           <div class="recovery-progress-item" data-recovery-progress="2"></div>
-          <div class="recovery-progress-item" data-recovery-progress="3"></div>
         </div>
 
         <section class="recovery-step active" data-recovery-step="1">
-          <div class="recovery-step-badge"><span data-icon="mail"></span> ШАГ 1 · ПОЧТА</div>
+          <div class="recovery-step-badge"><span data-icon="mail"></span> ШАГ 1 · ССЫЛКА НА ПОЧТУ</div>
           <div class="auth-field recovery-field">
             <label for="recoveryEmail">Email аккаунта</label>
             <input id="recoveryEmail" type="email" autocomplete="email" placeholder="you@example.com" />
           </div>
           <div class="auth-error" id="passwordResetError" role="alert"></div>
           <div class="email-confirm-actions">
-            <button class="email-resend-btn" id="recoverySendBtn" type="button">Получить код</button>
+            <button class="email-resend-btn" id="recoverySendBtn" type="button">Получить ссылку</button>
             <button class="email-cancel-btn" id="passwordResetCancelBtn" type="button">Отмена</button>
           </div>
-          <div class="recovery-hint">На этом шаге мы не сообщаем, существует ли аккаунт с такой почтой.</div>
+          <div class="recovery-hint" id="recoverySendHint">После отправки откройте письмо и нажмите ссылку. Код вводить не нужно.</div>
         </section>
 
         <section class="recovery-step" data-recovery-step="2">
-          <div class="recovery-step-badge"><span data-icon="shield"></span> ШАГ 2 · КОД</div>
+          <div class="recovery-step-badge"><span data-icon="lock"></span> ШАГ 2 · НОВЫЙ ПАРОЛЬ</div>
           <div class="recovery-email-chip" id="recoveryEmailChip">—</div>
-          <div class="auth-field recovery-field">
-            <label for="recoveryCode">Код из письма</label>
-            <input id="recoveryCode" class="recovery-code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="000000" />
-          </div>
-          <div class="auth-error" id="recoveryCodeError" role="alert"></div>
-          <div class="email-confirm-actions">
-            <button class="email-resend-btn" id="recoveryVerifyBtn" type="button">Проверить код</button>
-          </div>
-          <div class="recovery-actions-row">
-            <button class="recovery-secondary" id="recoveryBackToEmailBtn" type="button">← Изменить почту</button>
-            <button class="recovery-secondary" id="recoveryResendBtn" type="button">Отправить код снова</button>
-          </div>
-          <div class="recovery-hint" id="recoveryResendHint">Код действует ограниченное время. Проверьте также папку «Спам».</div>
-        </section>
-
-        <section class="recovery-step" data-recovery-step="3">
-          <div class="recovery-step-badge"><span data-icon="lock"></span> ШАГ 3 · НОВЫЙ ПАРОЛЬ</div>
           <div class="auth-field recovery-field">
             <label for="newPassword">Новый пароль</label>
             <input id="newPassword" type="password" autocomplete="new-password" placeholder="Минимум 6 символов" minlength="6" />
@@ -489,10 +524,7 @@
           <div class="email-confirm-actions">
             <button class="email-resend-btn" id="passwordResetBtn" type="button">Сохранить новый пароль</button>
           </div>
-          <div class="recovery-actions-row single">
-            <button class="recovery-secondary" id="recoveryBackToCodeBtn" type="button">← Вернуться к коду</button>
-          </div>
-          <div class="recovery-title-note">После смены пароля вы автоматически вернётесь в аккаунт.</div>
+          <div class="recovery-title-note">Ссылка уже подтвердила вашу почту. После смены пароля вы автоматически вернётесь в аккаунт.</div>
         </section>
       </div>
     </div>

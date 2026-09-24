@@ -1,14 +1,9 @@
 // ========== APP DATA LAYER ==========
-    // In production the browser uses a same-origin /supabase proxy.
-    // This avoids a direct browser connection to *.supabase.co while keeping
-    // the existing Supabase project, Auth, Storage and Realtime intact.
+    // Direct Supabase connection.
     const SUPABASE_DIRECT_URL = "https://xzaryhtrzdjrrqgrowkv.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EwldCPF1drff-q6Ei5zYcQ__is80B0T";
     const CONFIGURED_SUPABASE_URL = window.SMOTRY_CONFIG?.SUPABASE_URL || '';
-    const isLocalDev = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
-    const SUPABASE_URL = normalizeSupabaseBaseUrl(
-      CONFIGURED_SUPABASE_URL || (isLocalDev ? SUPABASE_DIRECT_URL : '/supabase')
-    );
+    const SUPABASE_URL = normalizeSupabaseBaseUrl(CONFIGURED_SUPABASE_URL || SUPABASE_DIRECT_URL);
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
         persistSession: true,
@@ -22,22 +17,16 @@
 
     function normalizeSupabaseBaseUrl(value) {
       const raw = String(value || '').trim();
-      if (!raw) return '/supabase';
-      return raw.replace(/\/+$/, '');
+      return (raw || SUPABASE_DIRECT_URL).replace(/\/+$/, '');
     }
 
     function rewriteSupabaseUrl(value) {
       const raw = String(value || '').trim();
       if (!raw) return '';
       try {
-        const u = new URL(raw, window.location.href);
+        const u = new URL(raw, SUPABASE_URL);
         if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
-        const direct = new URL(SUPABASE_DIRECT_URL);
-        if (u.host !== direct.host) return u.href;
-
-        const base = new URL(SUPABASE_URL, window.location.href);
-        const basePath = base.pathname.replace(/\/+$/, '');
-        return `${base.origin}${basePath}${u.pathname}${u.search}${u.hash}`;
+        return u.href;
       } catch (_) {
         return '';
       }
