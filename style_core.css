@@ -208,7 +208,7 @@
     .profile-stat-button { border:0; background:transparent; color:#fff; cursor:pointer; padding:4px 8px; border-radius:10px; }
     .profile-stat-button:hover { background:rgba(255,255,255,.06); }
     .connections-sheet { width:min(100%, 520px); max-height:78%; }
-    .connections-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; background:#191919; border-radius:10px; margin-bottom:10px; }
+    .connections-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; min-width:0; padding:4px; background:#191919; border-radius:10px; margin-bottom:10px; }
     .connection-tab { border:0; background:transparent; color:#8f8f95; padding:10px; border-radius:8px; font-weight:750; cursor:pointer; }
     .connection-tab.active { background:#2a2a2c; color:#fff; }
     .connections-list { max-height:52vh; overflow:auto; }

@@ -415,13 +415,16 @@
           ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
           : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop muted playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
+        const canComment = v.author?.whoCanComment !== 'none' && (v.author?.whoCanComment !== 'followers' || v.isMine || followingIds.has(v.authorId));
+        const likeCountText = v.author?.hideLikes && !v.isMine ? '—' : formatCount(v.likes);
+        const commentActionMarkup = canComment ? `<div class="side-action comment-btn" data-id="${escapeHtml(v.id)}"><div class="icon-btn">${icon('message',24)}</div><div class="count">${formatCount(v.comments)}</div></div>` : '';
         const saveBadge = v.favorited ? ' saved' : '';
         card.innerHTML = `
           ${media}
           <div class="video-pause-indicator" aria-hidden="true"><div class="pause-badge">${icon('pause',26)}</div></div>
           <div class="video-overlay">
             <button class="subscribe-btn ${v.subscribed ? 'subscribed' : ''}" data-id="${escapeHtml(v.id)}" ${v.isMine ? 'disabled' : ''}>
-              ${v.subscribed ? `${icon('check',14)} Подписан` : `${icon('userPlus',14)} Подписаться`}
+              ${v.subscribed ? `${icon('check',14)} Подписан` : v.followRequested ? `${icon('clock',14)} Запрос отправлен` : `${icon('userPlus',14)} Подписаться`}
             </button>
             <button class="video-sound-btn" type="button" aria-label="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}" title="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}">${icon(feedSoundEnabled ? 'volume' : 'volumeOff',21)}</button>
            <div class="side-actions">
@@ -433,12 +436,9 @@
               </div>
               <div class="side-action like-btn" data-id="${escapeHtml(v.id)}">
                 <div class="icon-btn ${v.liked ? 'liked' : ''}">${likeIcon}</div>
-                <div class="count">${formatCount(v.likes)}</div>
+                <div class="count">${likeCountText}</div>
               </div>
-              <div class="side-action comment-btn" data-id="${escapeHtml(v.id)}">
-                <div class="icon-btn">${icon('message',24)}</div>
-                <div class="count">${formatCount(v.comments)}</div>
-              </div>
+              ${commentActionMarkup}
               <div class="side-action share-btn" data-id="${escapeHtml(v.id)}">
                 <div class="icon-btn">${icon('share',24)}</div>
                 <div class="count">${formatCount(v.shares)}</div>
@@ -764,6 +764,25 @@
           const { error } = await db.from('subscriptions').delete().eq('follower_id', user.id).eq('following_id', authorId);
           if (error) throw error;
         } else {
+          const { data: targetProfile, error: profileError } = await db.from('profiles').select('id,is_private').eq('id', authorId).maybeSingle();
+          if (profileError) throw profileError;
+          if (targetProfile?.is_private) {
+            const { data: request, error: requestError } = await db.from('follow_requests')
+              .select('id,status').eq('requester_id', user.id).eq('target_id', authorId).maybeSingle();
+            if (requestError) throw requestError;
+            if (request?.status === 'pending') { v.followRequested = true; showToast('Запрос на подписку уже отправлен.'); return; }
+            const { error } = await db.from('follow_requests').upsert({
+              requester_id: user.id, target_id: authorId, status: 'pending', updated_at: new Date().toISOString()
+            }, { onConflict: 'requester_id,target_id' });
+            if (error) throw error;
+            v.followRequested = true;
+            const card = document.querySelector(`.video-card[data-id="${CSS.escape(id)}"]`);
+            const btn = card?.querySelector('.subscribe-btn');
+            if (btn) { btn.innerHTML = `${icon('clock',14)} Запрос отправлен`; btn.classList.add('subscribed'); }
+            if(card) hydrateIcons(card);
+            showToast('Запрос на подписку отправлен.');
+            return;
+          }
           const { error } = await db.from('subscriptions').insert({ follower_id: user.id, following_id: authorId });
           if (error && error.code !== '23505') throw error;
         }

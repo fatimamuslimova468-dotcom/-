@@ -26,8 +26,13 @@
         try {
           const { data: subRow, error: subError } = await db.from('subscriptions').select('follower_id').eq('follower_id', authUser.id).eq('following_id', user.id).maybeSingle();
           user.__isFollowing = !subError && Boolean(subRow);
-        } catch (_) { user.__isFollowing = false; }
-      } else { user.__isFollowing = false; }
+          user.__followRequested = false;
+          if(!user.__isFollowing && user.isPrivate){
+            const {data:req}=await db.from('follow_requests').select('id,status').eq('requester_id',authUser.id).eq('target_id',user.id).maybeSingle();
+            user.__followRequested=req?.status==='pending';
+          }
+        } catch (_) { user.__isFollowing = false; user.__followRequested = false; }
+      } else { user.__isFollowing = false; user.__followRequested = false; }
       currentProfile = user;
       showScreen('profile');
       const isMe = Boolean(authUser && user.id === authUser.id);
@@ -47,7 +52,7 @@
             ? `<button class="btn-secondary" id="profileAuthAction">Редактировать профиль</button>`
             : isGuestProfile
               ? `<button class="btn-primary" id="profileAuthAction">Войти</button>`
-              : (() => { const following = Boolean(user.__isFollowing); return `<button class="${following ? 'btn-secondary' : 'btn-primary'}" id="profileFollowBtn">${following ? 'Подписан' : 'Подписаться'}</button>${following ? `<button class="btn-secondary" id="profileMessageBtn">${icon('message',16)} Написать</button>` : ''}`; })()
+              : (() => { const following = Boolean(user.__isFollowing), requested=Boolean(user.__followRequested); return `<button class="${following || requested ? 'btn-secondary' : 'btn-primary'}" id="profileFollowBtn">${following ? 'Подписан' : requested ? `${icon('clock',14)} Запрос отправлен` : 'Подписаться'}</button>${following ? `<button class="btn-secondary" id="profileMessageBtn">${icon('message',16)} Написать</button>` : ''}`; })()
           + (user.donationEnabled && user.donationUsername && !isGuestProfile ? `<button class="btn-secondary" id="profileDonateBtn">${icon('donate',16)} Поддержать</button>` : '')
           }
         </div>
@@ -62,6 +67,7 @@
         <div style="height:2px"></div>`;
       hydrateIcons(header);
       document.getElementById('profileSettingsBtn')?.addEventListener('click', openSettings);
+      const requestTab=document.querySelector('[data-connection-tab="requests"]'); if(requestTab) requestTab.style.display=isMe?'block':'none';
       header.querySelectorAll('[data-profile-connection]').forEach(btn=>btn.addEventListener('click',()=>openProfileConnections(btn.dataset.profileConnection)));
 
       const authAction = document.getElementById('profileAuthAction');
@@ -77,6 +83,7 @@
         if (targetVideo) {
           await toggleSubscribe(targetVideo.id);
           user.__isFollowing = Boolean(targetVideo.subscribed);
+          user.__followRequested = Boolean(targetVideo.followRequested);
         } else {
           try {
             const result = await db.from('subscriptions').select('follower_id').eq('follower_id',authUser.id).eq('following_id',user.id).maybeSingle();
@@ -84,10 +91,22 @@
             if(isFollowing) {
               await db.from('subscriptions').delete().eq('follower_id',authUser.id).eq('following_id',user.id);
               user.__isFollowing=false;
+              user.__followRequested=false;
+            } else if(user.isPrivate) {
+              const {data:req,error:reqError}=await db.from('follow_requests').select('id,status').eq('requester_id',authUser.id).eq('target_id',user.id).maybeSingle();
+              if(reqError) throw reqError;
+              if(req?.status==='pending'){ user.__followRequested=true; showToast('Запрос на подписку уже отправлен.'); }
+              else {
+                const ins=await db.from('follow_requests').upsert({requester_id:authUser.id,target_id:user.id,status:'pending',updated_at:new Date().toISOString()},{onConflict:'requester_id,target_id'});
+                if(ins.error) throw ins.error;
+                user.__followRequested=true;
+                showToast('Запрос на подписку отправлен.');
+              }
             } else {
               const ins=await db.from('subscriptions').insert({follower_id:authUser.id,following_id:user.id});
               if(ins.error && ins.error.code!=='23505') throw ins.error;
               user.__isFollowing=true;
+              user.__followRequested=false;
             }
           } catch(e) { console.error(e); showToast('Не удалось изменить подписку.'); return; }
         }
@@ -102,7 +121,13 @@
           renderProfileGrid(t.dataset.ptab);
         };
       });
-      renderProfileGrid('videos');
+      const canViewPrivate = isMe || !user.isPrivate || Boolean(user.__isFollowing);
+      if(!canViewPrivate){
+        const grid=document.getElementById('profileGrid');
+        if(grid){ grid.innerHTML=`<div class="empty-state private-profile-empty" style="grid-column:1/-1"><div class="icon">${icon('lock',48)}</div><div style="font-size:16px;font-weight:800">Приватный аккаунт</div><div style="opacity:.65;font-size:13px;margin-top:6px">Подпишитесь на пользователя, чтобы смотреть его видео.</div></div>`; }
+      } else {
+        renderProfileGrid('videos');
+      }
     }
 
     function shuffleArray(list) {
@@ -353,9 +378,23 @@
       const modal=document.getElementById('connectionsModal'); const list=document.getElementById('connectionsList');
       modal.classList.add('visible');
       document.querySelectorAll('[data-connection-tab]').forEach(b=>b.classList.toggle('active',b.dataset.connectionTab===mode));
-      document.getElementById('connectionsTitle').textContent=mode==='followers'?'Подписчики':'Подписки';
+      document.getElementById('connectionsTitle').textContent=mode==='followers'?'Подписчики':mode==='requests'?'Заявки на подписку':'Подписки';
       list.innerHTML=`<div class="connection-empty">Загрузка…</div>`;
       try {
+        if(mode==='requests') {
+          if(!authUser || String(currentProfile.id)!==String(authUser.id)){ list.innerHTML='<div class="connection-empty">Заявки доступны только владельцу аккаунта.</div>'; return; }
+          const {data:requests,error}=await db.from('follow_requests').select('id,requester_id,created_at').eq('target_id',authUser.id).eq('status','pending').order('created_at',{ascending:false}).limit(300);
+          if(error) throw error;
+          const ids=(requests||[]).map(x=>x.requester_id).filter(Boolean);
+          if(!ids.length){ list.innerHTML='<div class="connection-empty">Новых заявок нет.</div>'; return; }
+          const {data:profiles,error:pe}=await db.from('profiles').select('id,name,display_name,username,avatar_url,followers_count').in('id',ids);
+          if(pe) throw pe;
+          const byId=new Map((profiles||[]).map(p=>[String(p.id),userFromProfile(p)]));
+          list.innerHTML=(requests||[]).map(r=>{ const u=byId.get(String(r.requester_id)); if(!u)return ''; return `<div class="user-row request-row" data-connection-user="${escapeHtml(u.id)}"><div class="u-avatar"><img src="${escapeHtml(u.avatar)}" alt=""></div><div class="u-info"><div class="u-name">${escapeHtml(u.name)}</div><div class="u-username">@${escapeHtml(u.username)}</div></div><div style="display:flex;gap:6px"><button class="u-btn" data-request-accept="${escapeHtml(r.id)}" data-request-user="${escapeHtml(u.id)}">Принять</button><button class="u-btn" data-request-reject="${escapeHtml(r.id)}">Отклонить</button></div></div>`; }).join('');
+          list.querySelectorAll('[data-request-accept]').forEach(btn=>btn.addEventListener('click',async e=>{ e.stopPropagation(); const rid=btn.dataset.requestAccept; try{ const result=await db.rpc('accept_follow_request',{p_request_id:rid}); if(result.error)throw result.error; showToast('Заявка принята.'); openProfileConnections('requests'); }catch(err){ console.error(err); showToast('Не удалось принять заявку. Выполните обновлённый settings_migration.sql.'); } }));
+          list.querySelectorAll('[data-request-reject]').forEach(btn=>btn.addEventListener('click',async e=>{ e.stopPropagation(); try{ const up=await db.from('follow_requests').update({status:'rejected',updated_at:new Date().toISOString()}).eq('id',btn.dataset.requestReject).eq('target_id',authUser.id); if(up.error)throw up.error; showToast('Заявка отклонена.'); openProfileConnections('requests'); }catch(err){ console.error(err); showToast('Не удалось отклонить заявку.'); } }));
+          return;
+        }
         const field=mode==='followers'?'following_id':'follower_id';
         const target=mode==='followers'?'follower_id':'following_id';
         const {data,error}=await db.from('subscriptions').select('follower_id,following_id,created_at').eq(field,currentProfile.id).order('created_at',{ascending:false}).limit(300);
@@ -413,14 +452,43 @@
       const local=readLocalSettings();
       if(!authUser){ userSettings={...DEFAULT_SETTINGS,...local}; applyAllSettings(); return; }
       try{
-        const {data,error}=await db.from('user_settings').select('*').eq('user_id',authUser.id).maybeSingle();
-        if(error) throw error;
-        const flat=data&&typeof data==='object'?data:{};
+        const [{data:settingsRow,error:settingsError},{data:profileRow,error:profileError}]=await Promise.all([
+          db.from('user_settings').select('*').eq('user_id',authUser.id).maybeSingle(),
+          db.from('profiles').select('id,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads').eq('id',authUser.id).maybeSingle()
+        ]);
+        if(settingsError) throw settingsError;
+        if(profileError) throw profileError;
+        const flat=settingsRow&&typeof settingsRow==='object'?settingsRow:{};
         const nested=flat.settings&&typeof flat.settings==='object'?flat.settings:{};
         const merged={...DEFAULT_SETTINGS,...local,...nested};
         Object.keys(DEFAULT_SETTINGS).forEach(k=>{ if(Object.prototype.hasOwnProperty.call(flat,k)) merged[k]=flat[k]; });
+        // Privacy flags are authoritative in profiles because other clients use them
+        // to decide whether the account/content is visible.
+        if(profileRow){
+          merged.private_account=Boolean(profileRow.is_private);
+          merged.hide_likes=Boolean(profileRow.hide_likes);
+          merged.who_can_comment=profileRow.who_can_comment||'all';
+          merged.who_can_message=profileRow.who_can_message||'all';
+          merged.who_can_duet=profileRow.who_can_duet||'all';
+          merged.allow_downloads=profileRow.allow_downloads!==false;
+        }
         userSettings=merged; cacheLocalSettings(); applyAllSettings();
-      }catch(e){ console.warn('settings load',e); userSettings={...DEFAULT_SETTINGS,...local}; applyAllSettings(); }
+      }catch(e){
+        console.warn('settings load',e);
+        try{
+          const {data:profileRow}=await db.from('profiles').select('id,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads').eq('id',authUser.id).maybeSingle();
+          userSettings={...DEFAULT_SETTINGS,...local};
+          if(profileRow){
+            userSettings.private_account=Boolean(profileRow.is_private);
+            userSettings.hide_likes=Boolean(profileRow.hide_likes);
+            userSettings.who_can_comment=profileRow.who_can_comment||'all';
+            userSettings.who_can_message=profileRow.who_can_message||'all';
+            userSettings.who_can_duet=profileRow.who_can_duet||'all';
+            userSettings.allow_downloads=profileRow.allow_downloads!==false;
+          }
+        }catch(_){ userSettings={...DEFAULT_SETTINGS,...local}; }
+        applyAllSettings();
+      }
     }
 
     function applyTheme(){
@@ -487,10 +555,33 @@
       userSettings[key]=value; cacheLocalSettings(); applyAllSettings();
       try{
         if(['content_filter_level','hidden_words'].includes(key)){ await loadRemoteData({force:true}); renderFeed({reshuffle:false}); }
-        if(key==='private_account'||key==='hide_likes') await syncPrivacyProfile(key,value);
-        if(authUser){ const {error}=await db.from('user_settings').upsert({user_id:authUser.id,[key]:value,updated_at:new Date().toISOString()},{onConflict:'user_id'}); if(error)throw error; }
+        const privacyKeys=['private_account','hide_likes','who_can_comment','who_can_message','who_can_duet','allow_downloads'];
+        if(privacyKeys.includes(key)) await syncPrivacyProfile(key,value);
+        if(authUser){
+          const {error}=await db.from('user_settings').upsert({user_id:authUser.id,[key]:value,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+          if(error) throw error;
+        }
+        if(authUser && privacyKeys.includes(key)){
+          const fresh=await fetchProfileById(authUser.id);
+          if(fresh){
+            const u=userFromProfile(fresh);
+            profileCache.set(u.id,u); currentUser=u;
+            videos.forEach(v=>{ if(String(v.authorId||v.author?.id)===String(u.id)) v.author=u; });
+            if(currentProfile && String(currentProfile.id)===String(u.id)) currentProfile=u;
+          }
+          renderFeed({reshuffle:false});
+        }
         const note=document.getElementById('settingsSaveNote'); if(note){note.textContent='Сохранено';clearTimeout(note._t);note._t=setTimeout(()=>note.textContent='',1400);}
-      }catch(e){ console.error('setting save',e); userSettings[key]=previous; cacheLocalSettings(); applyAllSettings(); showToast('Не удалось сохранить настройку.'); }
+      }catch(e){
+        console.error('setting save',e);
+        // If the DB table is absent, keep the setting locally rather than pretending
+        // that a successful click should revert immediately. The SQL migration in
+        // settings_migration.sql enables persistent cross-device storage.
+        if(['private_account','hide_likes','who_can_comment','who_can_message','who_can_duet','allow_downloads'].includes(key)){
+          try{ await syncPrivacyProfile(key,userSettings[key]); showToast('Настройка применена. Для синхронизации на других устройствах выполните settings_migration.sql.'); return; }catch(_){ }
+        }
+        showToast('Настройка применена только на этом устройстве.');
+      }
     }
 
     async function resetUserSettings(){
@@ -501,8 +592,14 @@
         try{
           const {error}=await db.from('user_settings').upsert({user_id:authUser.id,...DEFAULT_SETTINGS,updated_at:new Date().toISOString()},{onConflict:'user_id'});
           if(error) throw error;
-          await syncPrivacyProfile('private_account',false);
-          await syncPrivacyProfile('hide_likes',false);
+          await Promise.all([
+            syncPrivacyProfile('private_account',false),
+            syncPrivacyProfile('hide_likes',false),
+            syncPrivacyProfile('who_can_comment','all'),
+            syncPrivacyProfile('who_can_message','all'),
+            syncPrivacyProfile('who_can_duet','all'),
+            syncPrivacyProfile('allow_downloads',true)
+          ]);
         }catch(e){ console.warn('settings reset',e); showToast('Сброс выполнен локально.'); }
       }
       renderSettings();
@@ -510,8 +607,14 @@
     }
 
     async function syncPrivacyProfile(key,value){
-      try{const col=key==='private_account'?'is_private':'hide_likes'; const {error}=await db.from('profiles').update({[col]:value}).eq('id',authUser.id); if(error) throw error;}
-      catch(e){console.warn('profile setting sync',e);}
+      if(!authUser?.id) return;
+      const cols={
+        private_account:'is_private',hide_likes:'hide_likes',who_can_comment:'who_can_comment',
+        who_can_message:'who_can_message',who_can_duet:'who_can_duet',allow_downloads:'allow_downloads'
+      };
+      const col=cols[key]; if(!col) return;
+      const {error}=await db.from('profiles').update({[col]:value}).eq('id',authUser.id);
+      if(error) throw error;
     }
 
     function settingControl(key,type='switch',options=[]){
@@ -682,8 +785,10 @@
         const {data: subRow,error: subError}=await db.from('subscriptions').select('follower_id').eq('follower_id',user.id).eq('following_id',otherUserId).maybeSingle();
         if(subError) throw subError;
         if(!subRow){ showToast('Сначала подпишитесь на автора.'); return; }
-        const {data: partner}=await db.from('profiles').select('id,name,display_name,username,avatar_url').eq('id',otherUserId).maybeSingle();
+        const {data: partner}=await db.from('profiles').select('id,name,display_name,username,avatar_url,who_can_message,is_private').eq('id',otherUserId).maybeSingle();
         if(!partner) throw new Error('USER_NOT_FOUND');
+        const canMessage=partner.who_can_message==='none' ? false : partner.who_can_message==='followers' ? Boolean(subRow) : true;
+        if(!canMessage){ showToast('Автор запретил личные сообщения.'); return; }
         const rpc=await db.rpc('get_or_create_direct_chat',{p_other_user:otherUserId});
         if(rpc.error) throw rpc.error;
         activeChatId=rpc.data; activeChatPartnerId=otherUserId;

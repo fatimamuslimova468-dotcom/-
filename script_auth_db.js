@@ -504,7 +504,13 @@
           }
           const liked = new Set((likeResult.data || []).map(x => x.video_id));
           const saved = new Set((saveResult.data || []).map(x => x.video_id));
+          let pendingFollowRequests = new Set();
+          try {
+            const {data:requests}=await db.from('follow_requests').select('target_id').eq('requester_id',authUser.id).eq('status','pending');
+            pendingFollowRequests=new Set((requests||[]).map(x=>x.target_id).filter(Boolean));
+          } catch (_) {}
           mapped.forEach(v => {
+            v.followRequested = pendingFollowRequests.has(v.authorId);
             v.subscribed = followingIds.has(v.authorId);
             v.isFriend = friendIds.has(v.authorId);
             v.liked = liked.has(v.id);

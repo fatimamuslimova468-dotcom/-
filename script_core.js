@@ -411,14 +411,15 @@
     // Some deployments may not yet have optional moderation/donation columns;
     // a single missing column makes PostgREST return HTTP 400 for the whole select.
     const PROFILE_SELECT_CANDIDATES = [
-      // Start with the stable core fields so older deployments do not emit
-      // a visible 400 before falling back from newer optional columns.
-      'id,display_name,username,avatar_url',
-      'id,name,display_name,username,avatar_url,bio',
+      // Prefer the complete public profile schema so privacy flags are not silently
+      // lost by the first successful query. Older deployments fall back below.
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified',
       'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role,warning_count'
+      'id,name,display_name,username,avatar_url,bio',
+      'id,display_name,username,avatar_url',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role,warning_count'
     ];
 
     let activeProfileSelectFields = null;
@@ -470,6 +471,10 @@
         bio: profile.bio || '',
         isPrivate: Boolean(profile.is_private),
         hideLikes: Boolean(profile.hide_likes),
+        whoCanComment: profile.who_can_comment || 'all',
+        whoCanMessage: profile.who_can_message || 'all',
+        whoCanDuet: profile.who_can_duet || 'all',
+        allowDownloads: profile.allow_downloads !== false,
         isVerified: Boolean(profile.is_verified),
         donationUsername: profile.donationalerts_username || '',
         donationEnabled: Boolean(profile.donationalerts_enabled),

@@ -797,6 +797,8 @@
     function openDownloadModal(videoId){
       const v=videos.find(x=>String(x.id)===String(videoId));
       if(!v || v.mediaType==='image'){showToast('Для изображения загрузка видео недоступна.');return;}
+      const isOwner=Boolean(authUser && String(v.authorId||v.author?.id)===String(authUser.id));
+      if(!isOwner && v.author?.allowDownloads===false){showToast('Автор запретил скачивание этого видео.');return;}
       currentDownloadVideoId=String(videoId);
       document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('visible'));
       const list=document.getElementById('downloadOptions'); if(!list)return;
@@ -843,6 +845,8 @@
     async function downloadPreparedVideo(videoId,requestedMime,requestedExt){
       const v=videos.find(x=>String(x.id)===String(videoId));
       if(!v?.src)return;
+      const isOwner=Boolean(authUser && String(v.authorId||v.author?.id)===String(authUser.id));
+      if(!isOwner && v.author?.allowDownloads===false){ showToast('Автор запретил скачивание этого видео.'); closeModals(); return; }
       document.querySelectorAll('#downloadOptions button').forEach(b=>b.disabled=true);
       showToast('Подготавливаем видео…');
 
@@ -1273,45 +1277,69 @@
     }
 
     // ========== COMMENT MODERATION ==========
+    // Единый расширенный список: проверяются корни, словоформы и распространённые
+    // латинские/leet-варианты. Серверная функция в comment_moderation.sql должна
+    // использовать тот же набор — клиентская проверка является только первым слоем.
     const COMMENT_PROFANITY_TERMS = [
-      'бляд','блядь','бля','блять','ебан','ебать','ебл','еблан','ебись','нахуй','нахер','пизд','пизда','пиздец','хуйн','хуйню','хуй','хуйня','хуёв','мудак','мраз','сука','суч','шлюх','дроч','говн','дерьм','залуп','уеб','уёб','ёб','fuck','fucker','motherfucker','shit','bitch'
+      'хуй','хуj','xuy','huy','xui','hui','xy','xi','bq','pizec','хер','хуев','хуёв','хуйня','хуйло','хуйсос','нахуй','нахер','похуй','похуист','охуеть','охуенный','охуительно',
+      'пизд','пизда','пиздец','пиздеж','пиздёж','пиздить','пиздато','пиздатый','пиздюк','пиздюлина','пиздобол','пиздоболить','распиздяй','распиздяйство','спиздить','выпиздить','напиздеть','опиздеть','пиздецки','пиздецкий',
+      'бля','бляд','блядь','блять','блать','блти','блди','блядство','блядский','блядская','блдун','блдунья','блдовать','бляха','бляхомуха','блядища','блдюга','блдюк','блдюшник','блдюшный','блядствовать','блядующий','blya','blyat','blyad',
+      'еб','ёб','еба','ёба','ебать','ёбать','ебаться','ёбаться','ебал','ёбал','ебало','ёбало','ебаный','ебаная','ебаное','ебаные','ебись','ёбись','еби','ёби','ебёт','ёбёт','ебут','ёбут','ебля','ёбля','еблядь','ёблядь','ебнутый','ёбнутый','ебнутая','ёбнутая','ебнутые','ёбнутые','ебнуться','ёбнуться','ебнуть','ёбнуть','ебоватый','ёбоватый','ебовый','ёбовый','ебош','ёбош','ебошить','ёбошить','ебошиться','ёбошиться','ебство','ёбство','ебствовать','ёбствовать','ебун','ёбун','ебунья','ёбунья','ебучий','ёбучий','ебучая','ёбучая','ебучее','ёбучее','ебучие','ёбучие','ебырь','ёбырь','ебырить','ёбырить','ебыриться','ёбыриться','fuck','fucker','motherfucker','shit','bitch',
+      'пидор','пидар','пидорас','пидорастия','пидорский','пидорская','пидорское','пидорские','пидорство','пидорствовать','пидорок','pidor','pidar',
+      'муд','мудак','мудачка','мудаки','мудацкий','мудацкая','мудацкое','мудацкие','мудачество','мудачествовать','мдила','мдило',
+      'сук','сука','сукин','сукина','сукино','сукины','сучка','сучки','суч','сучий','suka','suk',
+      'гандон','гондон','гандонский',
+      'жоп','жопа','жопы','жопный','жопник','жопник','задниц','анус','аналь','ораль','секс','сексуаль','порно','порн','эрот','интим','онан','мастурб','педо','педофил','педофилия','зоо','зоофил','некро','некрофил','инцест','изнасил','насил','извращ','извращенец','садист','мазохист','фетиш','бдсм','БДСМ','ролев','свинг','группов','оргия','проститут','шлюх','бляд','путан','стриптиз','нудист','нудизм','эксгибиционист','вуайерист',
+      'мраз','мразь','тварь','ублюд','ублюдок','гнид','гнида','долбо','долбоёб','долбоеб','шлюх','сволоч','сволочь','падл','козел','козл','петух','куриц','яйц','писюн','письк','сиськ','титьк','собак','осел','баран','дебил','идиот','кретин','даун','лох','чмо','чмош','быдл','хам','хамл','нагл','подл','мерзав','негод','паразит','гад','гадюк','змея','шакал','крыс','свинь',
+      'алкогол','водк','пив','вин','коньяк','виски','ром','джин','текил','абсент','самогон','браг','кур','табак','сигарет','вейп','снюс','насвай','кальян',
+      'игр','казин','ставк','букмекер','лотере','рулетк','покер','блэкджек','слот','автомат',
+      'кредит','займ','долг','микрозайм','коллектор','мошен','обман','развод','скам','фишинг','взлом','хакер','вирус','троян','майнер','ботнет','ддос','спам','флуд','тролл','буллинг','травл','харас','сталк','домогат','педофил','педофилия',
+      'нарко','спайс','мефедрон','героин','кокаин','амфетамин','марихуан','гашиш','экстази','лсд','гриб','наркотик'
     ];
     const COMMENT_INSULT_TERMS = [
-      'дебил','идиот','кретин','тупиц','тупой','урод','ничтож','жалк','лох','лошар','долбо','придур','козел','козёл','чмо','даун','мусор','позор','тварь','дегенерат','баран'
+      // Отдельный список оставлен для сообщений об причине блокировки. Все эти
+      // корни всё равно блокируются независимо от переключателя модерации.
+      'дебил','идиот','кретин','урод','ничтож','жалк','лох','лошар','долбо','придур','козел','козёл','чмо','даун','мусор','позор','тварь','дегенерат','баран','быдл','хам','нагл','подл','мерзав','негод','паразит','гад','гадюк','шакал','крыс','свинь','собак','осел'
     ];
-    // Короткие сокращения проверяем только как отдельные токены,
-    // чтобы обычные слова вроде «блок» не попадали под фильтр.
     const COMMENT_SHORT_ABBREVIATIONS = new Set([
-      'бл','блт','блть','блд','мдк','пзд','пздц','хйн','хй','еб'
+      'бл','блт','блть','блд','мдк','пзд','пздц','хйн','хй','еб','ху','пд','мд','сук','жоп','секс','порн','педо','зоо','некро','лсд','ддос'
     ]);
 
+    // Приведение кириллицы/омоглифов/leet к ASCII. Знаки вроде *, #, . и пробелы
+    // удаляются только на втором шаге, поэтому «х*й», «п-и-з-д-ц», «х у й» и т.п.
+    // становятся сопоставимыми.
     function normalizeModerationText(value){
       return String(value||'')
         .normalize('NFKC')
         .toLowerCase()
-        .replace(/[ё]/g,'е')
-        // Кириллические/латинские омоглифы и частые leet-замены.
-        .replace(/[аàáâäãå]/g,'a')
-        .replace(/[еeèéêë]/g,'e')
-        .replace(/[оoòóôöõ]/g,'o')
-        .replace(/[сcç]/g,'c')
-        .replace(/[хx]/g,'x')
-        .replace(/[уy]/g,'y')
-        .replace(/[0]/g,'o')
-        .replace(/[1]/g,'i')
-        .replace(/[3]/g,'e')
-        .replace(/[4]/g,'a')
-        .replace(/[5]/g,'s')
-        // Схлопываем длинные повторения: «хуууйяяяя» -> «хууйя».
-        .replace(/([a-zа-яё])\1{2,}/gu,'$1$1');
+        .replace(/[@]/g,'a').replace(/[$]/g,'s').replace(/[€]/g,'e')
+        .replace(/[0]/g,'o').replace(/[1|!]/g,'i').replace(/[2]/g,'z').replace(/[3]/g,'e')
+        .replace(/[4]/g,'a').replace(/[5]/g,'s').replace(/[6]/g,'g').replace(/[7]/g,'t').replace(/[8]/g,'b').replace(/[9]/g,'g')
+        .replace(/[а]/g,'a').replace(/[б]/g,'b').replace(/[в]/g,'v').replace(/[г]/g,'g').replace(/[д]/g,'d')
+        .replace(/[её]/g,'e').replace(/[ж]/g,'zh').replace(/[з]/g,'z').replace(/[и]/g,'i').replace(/[й]/g,'i')
+        .replace(/[к]/g,'k').replace(/[л]/g,'l').replace(/[м]/g,'m').replace(/[н]/g,'n').replace(/[о]/g,'o')
+        .replace(/[п]/g,'p').replace(/[р]/g,'r').replace(/[с]/g,'s').replace(/[т]/g,'t').replace(/[у]/g,'u')
+        .replace(/[ф]/g,'f').replace(/[х]/g,'x').replace(/[ц]/g,'c').replace(/[ч]/g,'ch').replace(/[ш]/g,'sh')
+        .replace(/[щ]/g,'sh').replace(/[ъь]/g,'q').replace(/[ы]/g,'y').replace(/[э]/g,'e').replace(/[ю]/g,'yu').replace(/[я]/g,'ya')
+        .replace(/([a-zа-яё])\1+/gu,'$1');
     }
 
     function moderationCompact(value){
-      return normalizeModerationText(value).replace(/[^a-zа-я0-9]+/giu,'');
+      return normalizeModerationText(value).replace(/[^a-z0-9]+/g,'');
     }
 
     function moderationTokens(value){
-      return normalizeModerationText(value).split(/[^a-zа-я0-9]+/giu).filter(Boolean);
+      return normalizeModerationText(value).split(/[^a-z0-9]+/g).filter(Boolean);
+    }
+
+    // Внутри одного слова можно заменить букву на *, #, точку и т.п.
+    // Поэтому отдельно получаем «мягкие токены», где разделители внутри слова
+    // удаляются, но настоящие пробелы по-прежнему разделяют слова.
+    function moderationLooseTokens(value){
+      return normalizeModerationText(value)
+        .split(/\s+/g)
+        .map(part=>part.replace(/[^a-z0-9]+/g,''))
+        .filter(Boolean);
     }
 
     function moderationDistanceWithin(a,b,maxDistance){
@@ -1323,9 +1351,8 @@
         let rowMin=cur[0];
         for(let j=1;j<=b.length;j++){
           const cost=a[i-1]===b[j-1]?0:1;
-          const value=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+cost);
-          cur.push(value);
-          if(value<rowMin) rowMin=value;
+          const v=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+cost);
+          cur.push(v); rowMin=Math.min(rowMin,v);
         }
         if(rowMin>maxDistance) return maxDistance+1;
         prev=cur;
@@ -1333,70 +1360,59 @@
       return prev[b.length];
     }
 
+    function hasBoundaryMaskedVariant(compact, term){
+      // Позволяет поймать сильно замаскированные варианты вида «х..й», «б-ь».
+      // Ограничиваемся короткими краями известных терминов, чтобы не блокировать
+      // нормальные длинные слова по одной случайной букве.
+      const t=moderationCompact(term);
+      if(!t || t.length<3 || compact.length<2 || compact.length>Math.min(3,t.length)) return false;
+      if(compact.length===2 && compact[0]===t[0] && compact[1]===t[t.length-1]) return true;
+      if(compact.length===2 && compact[0]===t[0] && compact[1]===t[1]) return true;
+      if(compact.length===2 && compact[0]===t[t.length-2] && compact[1]===t[t.length-1]) return true;
+      return false;
+    }
+
     function hasModerationTerm(value, terms){
       const compact=moderationCompact(value);
       if(!compact) return false;
       const tokens=moderationTokens(value);
+      const looseTokens=moderationLooseTokens(value);
 
-      // Обычный поиск ловит словоформы и варианты с символами/пробелами.
-      if(terms.some(term=>{
+      // Основная проверка: после нормализации «х*й», «x u y», «п-и-з-д-е-ц»,
+      // @/#/0 и повторов превращаются в сопоставимую строку.
+      for(const term of terms){
         const t=moderationCompact(term);
-        return t && compact.includes(t);
-      })) return true;
+        if(t && (compact.includes(t) || tokens.some(token=>token.includes(t)) || looseTokens.some(token=>token===t))) return true;
+      }
 
-      // Для намеренного искажения слова («хукня», пропуск/замена буквы)
-      // сравниваем и отдельные токены, и окна склеенного текста. Это ловит
-      // варианты вроде «х у к н я» / «х-у-к-н-я».
+      // Если один символ заменён на *, #, точку или другой разделитель:
+      // «пиз#ец» -> «pizec» вместо «pizdec». Проверяем только целиком один
+      // нормализованный токен, чтобы не создавать ложные совпадения внутри фраз.
       for(const term of terms){
         const t=moderationCompact(term);
         if(!t || t.length<4) continue;
-        const limit=t.length>=7?2:1;
-
-        if(Math.abs(compact.length-t.length)<=limit && moderationDistanceWithin(compact,t,limit)<=limit) return true;
-
-        for(let len=Math.max(1,t.length-limit); len<=t.length+limit; len++){
-          for(let i=0; i+len<=compact.length; i++){
-            const piece=compact.slice(i,i+len);
-            if(moderationDistanceWithin(piece,t,limit)<=limit) return true;
-          }
+        for(let i=1;i<t.length-1;i++){
+          const shortened=t.slice(0,i)+t.slice(i+1);
+          if(looseTokens.includes(shortened)) return true;
         }
-
-        if(tokens.some(token=>{
-          if(Math.abs(token.length-t.length)>limit) return false;
-          return moderationDistanceWithin(token,t,limit)<=limit;
-        })) return true;
       }
+
+      // Для длинных слов допускаем максимум 1–2 ошибочно введённых символа.
+      // Короткие корни намеренно не fuzzy-сравниваем.
+      for(const term of terms){
+        const t=moderationCompact(term);
+        if(!t || t.length<7) continue;
+        const limit=t.length>=9?2:1;
+        if(tokens.some(token=>Math.abs(token.length-t.length)<=limit && moderationDistanceWithin(token,t,limit)<=limit)) return true;
+      }
+
       return false;
     }
 
     function hasShortModerationAbbreviation(value){
       const tokens=moderationTokens(value);
       const compact=moderationCompact(value);
-      return tokens.some(token=>COMMENT_SHORT_ABBREVIATIONS.has(token))
-        || [...COMMENT_SHORT_ABBREVIATIONS].some(term=>compact===term);
-    }
-
-    function strictToxicPhrase(value){
-      const raw=normalizeModerationText(value).trim();
-      if(!raw || raw.length>64) return false;
-      const compact=moderationCompact(raw);
-      if(/^фу+[a-zа-я0-9]{0,14}$/iu.test(compact)) return true;
-      if(/^кринж[a-zа-я0-9]{0,14}$/iu.test(compact)) return true;
-      if(/\bты\s+(кринж|тупой|тупица|идиот|дебил|урод)\b/iu.test(raw)) return true;
-      if(/\bфу\s+ты\b/iu.test(raw)) return true;
-      return false;
-    }
-
-    function moderateCommentText(value){
-      const text=String(value||'').trim();
-      if(!text) return {allowed:false,reason:'empty'};
-      if(hasShortModerationAbbreviation(text) || hasModerationTerm(text,COMMENT_PROFANITY_TERMS)) return {allowed:false,reason:'profanity'};
-      if(hasModerationTerm(text,COMMENT_INSULT_TERMS)) return {allowed:false,reason:'insult'};
-      if(Number(userSettings.comment_moderation_level||2)>=2 && strictToxicPhrase(text)) return {allowed:false,reason:'toxicity'};
-      const hidden=(userSettings.hidden_words||[]).map(x=>String(x).trim()).filter(Boolean);
-      const lower=normalizeModerationText(text);
-      if(hidden.some(word=>lower.includes(normalizeModerationText(word)))) return {allowed:false,reason:'hidden_word'};
-      return {allowed:true,reason:''};
+      return tokens.some(token=>COMMENT_SHORT_ABBREVIATIONS.has(token)) || [...COMMENT_SHORT_ABBREVIATIONS].some(term=>compact===term);
     }
 
     function moderationMessage(reason){
@@ -1420,6 +1436,16 @@
       return masked;
     }
 
+    async function getAuthorPrivacy(videoId){
+      const v=videos.find(x=>String(x.id)===String(videoId));
+      const author=v?.author;
+      if(!author) return {isOwner:false,following:false,comments:true,author:null};
+      const isOwner=Boolean(authUser && String(author.id)===String(authUser.id));
+      const following=Boolean(authUser && followingIds.has(author.id));
+      const policy=author.whoCanComment||'all';
+      return {isOwner,following,comments:isOwner||policy==='all'||(policy==='followers'&&following),author};
+    }
+
     async function openComments(videoId) {
       currentCommentsVideoId = videoId;
       closeCommentContext();
@@ -1427,7 +1453,9 @@
       const list = document.getElementById('commentsList');
       const donateBtn = document.getElementById('commentDonateBtn');
       const currentVideo = videos.find(x => String(x.id) === String(videoId));
-      const author = currentVideo?.author;
+      const policy = await getAuthorPrivacy(videoId);
+      const author = policy.author || currentVideo?.author;
+      if(!policy.comments && author){ showToast(author.whoCanComment==='none'?'Автор запретил комментарии.':'Комментарии доступны только подписчикам.'); return; }
       if (donateBtn) {
         donateBtn.style.display = author?.donationEnabled && author?.donationUsername ? 'flex' : 'none';
         donateBtn.innerHTML = `${icon('donate',15)} Поддержать @${escapeHtml(author?.username || 'автора')}`;
@@ -1484,6 +1512,8 @@
     async function sendComment() {
       const user = await requireAuth('оставить комментарий'); if (!user) return;
       const input = document.getElementById('commentInput'); const text = input.value.trim(); if (!text) return;
+      const policy=await getAuthorPrivacy(currentCommentsVideoId);
+      if(!policy.comments){ showToast(policy.author?.whoCanComment==='none'?'Автор запретил комментарии.':'Комментарии доступны только подписчикам.'); return; }
       const moderation=moderateCommentText(text);
       if(!moderation.allowed){ showToast(moderationMessage(moderation.reason)); return; }
       try {
