@@ -345,6 +345,17 @@
     let recoveryVerified = false;
     let recoveryResendTimer = null;
     let resendCooldownTimer = null;
+
+    // Safely stop the password-recovery resend timer from any UI handler.
+    // The current recovery flow uses a link, not a verification code, so this
+    // timer is normally unused; keeping the cleanup function prevents a modal
+    // close from throwing and blocking the auth window.
+    function stopRecoveryResendTimer() {
+      if (recoveryResendTimer) {
+        clearInterval(recoveryResendTimer);
+        recoveryResendTimer = null;
+      }
+    }
     let remoteLoaded = false;
     const followingIds = new Set();
     const friendIds = new Set();
@@ -400,12 +411,14 @@
     // Some deployments may not yet have optional moderation/donation columns;
     // a single missing column makes PostgREST return HTTP 400 for the whole select.
     const PROFILE_SELECT_CANDIDATES = [
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role,warning_count',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified',
+      // Start with the stable core fields so older deployments do not emit
+      // a visible 400 before falling back from newer optional columns.
+      'id,display_name,username,avatar_url',
       'id,name,display_name,username,avatar_url,bio',
-      'id,display_name,username,avatar_url'
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role',
+      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role,warning_count'
     ];
 
     let activeProfileSelectFields = null;
