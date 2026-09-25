@@ -504,11 +504,10 @@
           }
           const liked = new Set((likeResult.data || []).map(x => x.video_id));
           const saved = new Set((saveResult.data || []).map(x => x.video_id));
-          let pendingFollowRequests = new Set();
-          try {
-            const {data:requests}=await db.from('follow_requests').select('target_id').eq('requester_id',authUser.id).eq('status','pending');
-            pendingFollowRequests=new Set((requests||[]).map(x=>x.target_id).filter(Boolean));
-          } catch (_) {}
+          // Follow-request state is loaded lazily only for private profiles.
+          // Older deployments may not have the optional follow_requests table;
+          // boot must not fail or spam the network console because of that.
+          const pendingFollowRequests = new Set();
           mapped.forEach(v => {
             v.followRequested = pendingFollowRequests.has(v.authorId);
             v.subscribed = followingIds.has(v.authorId);

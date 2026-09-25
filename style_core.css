@@ -292,6 +292,16 @@
     .auth-field input,
     .comment-input-row input,
     .search-input { color:var(--text); }
+    .search-safety-card{margin:18px 14px;padding:22px 18px;border:1px solid rgba(255,255,255,.09);border-radius:20px;background:var(--surface);text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.14)}
+    .search-safety-card--support{border-color:rgba(76,175,80,.28)}
+    .search-safety-card--adult{border-color:rgba(255,193,7,.25)}
+    .search-safety-icon{width:46px;height:46px;margin:0 auto 12px;border-radius:15px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);font-weight:900;font-size:15px}
+    .search-safety-title{font-size:19px;font-weight:850;margin-bottom:8px}
+    .search-safety-text{font-size:14px;line-height:1.5;color:var(--text-muted);max-width:520px;margin:0 auto}
+    .search-safety-action{display:inline-flex;align-items:center;justify-content:center;margin:16px auto 8px;min-height:42px;padding:0 16px;border-radius:12px;background:var(--accent);color:#fff;text-decoration:none;font-weight:800}
+    .search-safety-help{font-size:12px;line-height:1.45;color:var(--text-muted)}
+    .search-safety-query{margin-top:13px;font-size:12px;color:var(--text-muted);opacity:.8;overflow-wrap:anywhere}
+
     .profile-edit-field input::placeholder,
     .auth-field input::placeholder,
     .comment-input-row input::placeholder,

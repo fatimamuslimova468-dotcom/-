@@ -687,8 +687,9 @@
     }
 
     async function recordView(videoId) {
-      if (viewedVideos.has(videoId) || !isRemoteVideo(videos.find(v => v.id === videoId))) return;
-      viewedVideos.add(videoId);
+      const key = String(videoId || '');
+      if (!key || viewedVideos.has(key) || !isRemoteVideo(videos.find(v => String(v.id) === key))) return;
+      viewedVideos.add(key);
       try {
         if (authUser) {
           await db.rpc('record_video_view', { p_video_id: videoId, p_session_id: getSessionId() });

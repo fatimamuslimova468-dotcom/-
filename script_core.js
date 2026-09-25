@@ -407,48 +407,35 @@
       return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     }
 
-    // Profile queries are intentionally tolerant to older Supabase schemas.
-    // Some deployments may not yet have optional moderation/donation columns;
-    // a single missing column makes PostgREST return HTTP 400 for the whole select.
-    const PROFILE_SELECT_CANDIDATES = [
-      // Prefer the complete public profile schema so privacy flags are not silently
-      // lost by the first successful query. Older deployments fall back below.
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,is_verified',
-      'id,name,display_name,username,avatar_url,bio',
-      'id,display_name,username,avatar_url',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role',
-      'id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads,is_verified,profile_edit_last_at,donationalerts_username,donationalerts_enabled,donationalerts_connected,is_banned,ban_reason,role,warning_count'
-    ];
-
-    let activeProfileSelectFields = null;
-
-    function isProfileSchemaSelectError(error) {
-      const status = Number(error?.status || 0);
-      const code = String(error?.code || '');
-      const msg = String(error?.message || '').toLowerCase();
-      return status === 400 || /^pgrst20[0-9]/.test(code) || msg.includes('schema cache') || msg.includes('column') || msg.includes('does not exist');
-    }
-
+    // Profile loading intentionally uses `select('*')` here: optional fields vary
+    // between deployed schemas, while userFromProfile() already handles missing fields.
     async function fetchProfilesByIds(ids) {
       const cleanIds = [...new Set((ids || []).map(x => String(x || '').trim()).filter(Boolean))];
       if (!cleanIds.length) return [];
-      const candidates = activeProfileSelectFields
-        ? [activeProfileSelectFields, ...PROFILE_SELECT_CANDIDATES.filter(x => x !== activeProfileSelectFields)]
-        : PROFILE_SELECT_CANDIDATES;
-      let lastError = null;
-      for (const fields of candidates) {
-        const { data, error } = await db.from('profiles').select(fields).in('id', cleanIds);
-        if (!error) {
-          activeProfileSelectFields = fields;
-          return data || [];
-        }
-        lastError = error;
-        if (!isProfileSchemaSelectError(error)) throw error;
-        console.warn('Profile select fallback:', { fields, code:error?.code, status:error?.status, message:error?.message });
-      }
-      throw lastError || new Error('Не удалось загрузить профили');
+
+      // Do not hard-code optional profile columns here. PostgREST returns HTTP 400
+      // when even one requested column is missing from an older schema. `select('*')`
+      // keeps profile loading compatible across deployed schemas while userFromProfile()
+      // safely handles absent optional fields.
+      const { data, error } = await db.from('profiles').select('*').in('id', cleanIds);
+      if (!error) return data || [];
+
+      console.warn('Profile load:', {
+        code: error?.code || '',
+        status: error?.status || 0,
+        message: error?.message || String(error)
+      });
+
+      // A final minimal retry helps with unusual PostgREST views that do not accept '*'.
+      try {
+        const { data: minimal, error: minimalError } = await db
+          .from('profiles')
+          .select('id,username,display_name,avatar_url')
+          .in('id', cleanIds);
+        if (!minimalError) return minimal || [];
+      } catch (_) {}
+
+      throw error;
     }
 
     async function fetchProfileById(id) {

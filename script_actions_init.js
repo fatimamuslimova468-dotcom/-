@@ -1150,7 +1150,7 @@
         const { data, error } = await db.from('profiles').update({
           donationalerts_username: username || null,
           donationalerts_enabled: enabled
-        }).eq('id', user.id).select('id,name,display_name,username,avatar_url,bio,followers_count,following_count,likes_count,videos_count,is_private,is_verified,donationalerts_username,donationalerts_enabled,donationalerts_connected').single();
+        }).eq('id', user.id).select('*').single();
         if (error) throw error;
         currentUser = userFromProfile(data);
         profileCache.set(currentUser.id, currentUser);
@@ -1423,6 +1423,35 @@
       return 'Комментарий не опубликован.';
     }
 
+    // Единственная клиентская точка проверки комментария перед INSERT.
+    // Серверная триггерная проверка в comment_moderation.sql остаётся обязательной
+    // защитой, а эта функция не даёт интерфейсу падать с ReferenceError.
+    function moderateCommentText(value){
+      const text=String(value||'').trim();
+      if(!text) return {allowed:true,reason:''};
+
+      if(hasModerationTerm(text, COMMENT_PROFANITY_TERMS) || hasShortModerationAbbreviation(text)){
+        return {allowed:false,reason:'profanity'};
+      }
+
+      const hidden=(Array.isArray(userSettings?.hidden_words)?userSettings.hidden_words:[])
+        .map(x=>String(x||'').trim())
+        .filter(Boolean);
+      if(hidden.some(word=>hasModerationTerm(text,[word]))){
+        return {allowed:false,reason:'hidden_word'};
+      }
+
+      if(userSettings?.comment_moderation_enabled!==false){
+        if(hasModerationTerm(text, COMMENT_INSULT_TERMS)){
+          return {allowed:false,reason:'insult'};
+        }
+        if(Number(userSettings?.comment_moderation_level||2)>=2 && hasShortModerationAbbreviation(text)){
+          return {allowed:false,reason:'toxicity'};
+        }
+      }
+      return {allowed:true,reason:''};
+    }
+
     function maskModeratedText(value){
       const text=String(value||'');
       if(!text) return '';
@@ -1469,7 +1498,7 @@
         if (error) throw error;
         const ids = [...new Set((data || []).map(c => c.user_id).filter(Boolean))];
         if (ids.length) {
-          const { data: profiles } = await db.from('profiles').select('id,name,display_name,username,avatar_url,donationalerts_username,donationalerts_enabled,donationalerts_connected').in('id', ids);
+          const { data: profiles } = await db.from('profiles').select('*').in('id', ids);
           (profiles || []).forEach(p => profileCache.set(p.id, userFromProfile(p)));
         }
         await loadCommentInteractionState((data || []).map(c => c.id));

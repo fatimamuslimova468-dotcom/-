@@ -451,44 +451,33 @@
     async function loadUserSettings(){
       const local=readLocalSettings();
       if(!authUser){ userSettings={...DEFAULT_SETTINGS,...local}; applyAllSettings(); return; }
+
+      // Загружаем настройки и профиль независимо: старые схемы profiles могут не
+      // содержать privacy-колонок, поэтому профиль берём через tolerant fetchProfileById().
+      let settingsRow=null;
       try{
-        const [{data:settingsRow,error:settingsError},{data:profileRow,error:profileError}]=await Promise.all([
-          db.from('user_settings').select('*').eq('user_id',authUser.id).maybeSingle(),
-          db.from('profiles').select('id,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads').eq('id',authUser.id).maybeSingle()
-        ]);
-        if(settingsError) throw settingsError;
-        if(profileError) throw profileError;
-        const flat=settingsRow&&typeof settingsRow==='object'?settingsRow:{};
-        const nested=flat.settings&&typeof flat.settings==='object'?flat.settings:{};
-        const merged={...DEFAULT_SETTINGS,...local,...nested};
-        Object.keys(DEFAULT_SETTINGS).forEach(k=>{ if(Object.prototype.hasOwnProperty.call(flat,k)) merged[k]=flat[k]; });
-        // Privacy flags are authoritative in profiles because other clients use them
-        // to decide whether the account/content is visible.
-        if(profileRow){
-          merged.private_account=Boolean(profileRow.is_private);
-          merged.hide_likes=Boolean(profileRow.hide_likes);
-          merged.who_can_comment=profileRow.who_can_comment||'all';
-          merged.who_can_message=profileRow.who_can_message||'all';
-          merged.who_can_duet=profileRow.who_can_duet||'all';
-          merged.allow_downloads=profileRow.allow_downloads!==false;
-        }
-        userSettings=merged; cacheLocalSettings(); applyAllSettings();
-      }catch(e){
-        console.warn('settings load',e);
-        try{
-          const {data:profileRow}=await db.from('profiles').select('id,is_private,hide_likes,who_can_comment,who_can_message,who_can_duet,allow_downloads').eq('id',authUser.id).maybeSingle();
-          userSettings={...DEFAULT_SETTINGS,...local};
-          if(profileRow){
-            userSettings.private_account=Boolean(profileRow.is_private);
-            userSettings.hide_likes=Boolean(profileRow.hide_likes);
-            userSettings.who_can_comment=profileRow.who_can_comment||'all';
-            userSettings.who_can_message=profileRow.who_can_message||'all';
-            userSettings.who_can_duet=profileRow.who_can_duet||'all';
-            userSettings.allow_downloads=profileRow.allow_downloads!==false;
-          }
-        }catch(_){ userSettings={...DEFAULT_SETTINGS,...local}; }
-        applyAllSettings();
+        const {data,error}=await db.from('user_settings').select('*').eq('user_id',authUser.id).maybeSingle();
+        if(!error) settingsRow=data||null;
+        else console.warn('user_settings load', error?.message || error);
+      }catch(e){ console.warn('user_settings load',e); }
+
+      let profileRow=null;
+      try{ profileRow=await fetchProfileById(authUser.id); }
+      catch(e){ console.warn('profile settings load',e); }
+
+      const flat=settingsRow&&typeof settingsRow==='object'?settingsRow:{};
+      const nested=flat.settings&&typeof flat.settings==='object'?flat.settings:{};
+      const merged={...DEFAULT_SETTINGS,...local,...nested};
+      Object.keys(DEFAULT_SETTINGS).forEach(k=>{ if(Object.prototype.hasOwnProperty.call(flat,k)) merged[k]=flat[k]; });
+      if(profileRow){
+        merged.private_account=Boolean(profileRow.is_private);
+        merged.hide_likes=Boolean(profileRow.hide_likes);
+        merged.who_can_comment=profileRow.who_can_comment||'all';
+        merged.who_can_message=profileRow.who_can_message||'all';
+        merged.who_can_duet=profileRow.who_can_duet||'all';
+        merged.allow_downloads=profileRow.allow_downloads!==false;
       }
+      userSettings=merged; cacheLocalSettings(); applyAllSettings();
     }
 
     function applyTheme(){
@@ -785,16 +774,17 @@
         const {data: subRow,error: subError}=await db.from('subscriptions').select('follower_id').eq('follower_id',user.id).eq('following_id',otherUserId).maybeSingle();
         if(subError) throw subError;
         if(!subRow){ showToast('Сначала подпишитесь на автора.'); return; }
-        const {data: partner}=await db.from('profiles').select('id,name,display_name,username,avatar_url,who_can_message,is_private').eq('id',otherUserId).maybeSingle();
-        if(!partner) throw new Error('USER_NOT_FOUND');
-        const canMessage=partner.who_can_message==='none' ? false : partner.who_can_message==='followers' ? Boolean(subRow) : true;
+        const partnerRow=await fetchProfileById(otherUserId);
+        if(!partnerRow) throw new Error('USER_NOT_FOUND');
+        const partner=userFromProfile(partnerRow);
+        const canMessage=partner.whoCanMessage==='none' ? false : partner.whoCanMessage==='followers' ? Boolean(subRow) : true;
         if(!canMessage){ showToast('Автор запретил личные сообщения.'); return; }
         const rpc=await db.rpc('get_or_create_direct_chat',{p_other_user:otherUserId});
         if(rpc.error) throw rpc.error;
         activeChatId=rpc.data; activeChatPartnerId=otherUserId;
-        document.getElementById('chatHeadName').textContent=partner.display_name||partner.name||'Пользователь';
+        document.getElementById('chatHeadName').textContent=partner.name||'Пользователь';
         document.getElementById('chatHeadStatus').textContent=`@${partner.username||'user'}`;
-        document.getElementById('chatHeadAvatar').src=partner.avatar_url||fallbackAvatar(partner.name||'П');
+        document.getElementById('chatHeadAvatar').src=partner.avatar||fallbackAvatar(partner.name||'П');
         document.getElementById('chatBody').innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Загрузка сообщений…</div></div>`;
         document.getElementById('chatModal').classList.add('visible');
         hydrateIcons(document.getElementById('chatModal'));
@@ -881,14 +871,55 @@
     }
 
     // ========== SEARCH ==========
+    const SEARCH_SELF_HARM_TERMS = [
+      'как умереть','быстро умереть','легко умереть','безболезненно умереть','как покончить с собой','как покончить собой','умереть без боли','умереть безболезненно',
+      'хочу умереть','хочу покончить с собой','убить себя','убиться','суицид','самоубийство','самоубийца',
+      'мысли о смерти','мысли о самоубийстве','не хочу жить','не хочу больше жить','навредить себе','причинить себе вред',
+      'самоповреждение','селфхарм','self harm','self-harm','suicide','suicidal','kill myself','want to die'
+    ];
+    const SEARCH_ADULT_TERMS = [
+      'порно','порнография','порнуха','эротика 18','эротический','секс','секс видео','голые','обнаженные','обнажённые',
+      'нюд','nude','porn','pornography','xxx','nsfw','onlyfans','онлифанс','мастурбация','проститутка','проституция','бдсм','bdsm'
+    ];
+
+    function normalizeSearchSafety(value){
+      return String(value||'').normalize('NFKC').toLowerCase().replace(/ё/g,'е').replace(/[^a-zа-я0-9]+/giu,' ').replace(/\s+/g,' ').trim();
+    }
+
+    function searchContainsPhrase(q, terms){
+      const text=normalizeSearchSafety(q);
+      return terms.some(term=>{
+        const t=normalizeSearchSafety(term);
+        return t && text.includes(t);
+      });
+    }
+
+    function renderSearchSafetyNotice(type, q){
+      const results=document.getElementById('searchResults');
+      if(!results) return true;
+      if(type==='selfharm'){
+        results.innerHTML=`<div class="search-safety-card search-safety-card--support" role="status"><div class="search-safety-icon">❤</div><div class="search-safety-title">Вы не одни</div><div class="search-safety-text">Похоже, этот запрос связан с сильной болью или мыслями о смерти. Не оставайтесь с этим в одиночку. Поговорите с близким человеком или специалистом.</div><a class="search-safety-action" href="tel:+74959895050">Позвонить в психологическую службу МЧС: +7 (495) 989-50-50</a><div class="search-safety-help">На официальном сайте МЧС есть круглосуточная психологическая помощь и возможность обратиться к психологу онлайн. <a href="https://psi.mchs.gov.ru/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">Открыть службу помощи</a>. При непосредственной опасности звоните 112.</div></div>`;
+        return true;
+      }
+      if(type==='adult'){
+        results.innerHTML=`<div class="search-safety-card search-safety-card--adult" role="status"><div class="search-safety-icon">18+</div><div class="search-safety-title">Поиск ограничен</div><div class="search-safety-text">Этот запрос относится к сексуальному контенту 18+, поэтому такие результаты не показываются в поиске.</div><div class="search-safety-query">Запрос: «${safeQ}»</div></div>`;
+        return true;
+      }
+      return false;
+    }
+
     function setupSearch() {
       const input = document.getElementById('searchInput');
+      if (!input || input.dataset.searchBound === '1') return;
+      input.dataset.searchBound = '1';
       input.addEventListener('input', () => renderSearchResults(input.value.trim().toLowerCase()));
     }
 
     function renderSearchResults(q) {
       const results = document.getElementById('searchResults');
       if (!q) { renderSearchSuggestions(); return; }
+      if(searchContainsPhrase(q, SEARCH_SELF_HARM_TERMS)){ renderSearchSafetyNotice('selfharm', q); return; }
+      if(searchContainsPhrase(q, SEARCH_ADULT_TERMS)){ renderSearchSafetyNotice('adult', q); return; }
       const matchedUsers = users.filter(u => `${u.name} ${u.username}`.toLowerCase().includes(q));
       const matchedVideos = videos.filter(v => `${v.desc} ${v.hashtags} ${v.title}`.toLowerCase().includes(q));
       results.innerHTML = `
@@ -899,7 +930,14 @@
     }
 
     function renderSearchSuggestions() {
-      const box = document.getElementById('searchSuggestions');
+      let box = document.getElementById('searchSuggestions');
+      if (!box) {
+        const results = document.getElementById('searchResults');
+        if (!results) return;
+        box = document.createElement('div');
+        box.id = 'searchSuggestions';
+        results.appendChild(box);
+      }
       const candidates = users.slice(0, 8);
       box.innerHTML = candidates.map(u => `
         <div class="user-row" onclick="openProfile('${escapeHtml(u.id)}')">
