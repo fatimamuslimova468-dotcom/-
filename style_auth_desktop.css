@@ -536,3 +536,5 @@ body.light-theme .auth-agreement-link { color:#161616; }
 body.light-theme .agreement-content { color:#5f6068; }
 body.light-theme .agreement-content strong { color:#161616; }
 body.light-theme .agreement-template-note { background:rgba(254,44,85,.06); border-color:rgba(254,44,85,.12); color:#676870; }
+
+.auth-privacy-check{margin-top:8px}.auth-agreement-check + .auth-agreement-check{margin-top:8px}

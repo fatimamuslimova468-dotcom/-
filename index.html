@@ -228,6 +228,7 @@
 
     <div class="modal-overlay" id="commentsModal">
       <div class="modal-sheet">
+        <div class="country-flag-animation-layer" id="countryFlagAnimationLayer" aria-hidden="true"></div>
         <div class="handle"></div>
         <h3>Комментарии</h3>
         <button class="donation-comment-cta" id="commentDonateBtn" type="button" style="display:none;"></button>
@@ -367,6 +368,8 @@
 
     <div class="comment-context-menu" id="commentContextMenu">
       <button type="button" id="hideCommentAction"><span data-icon="eye"></span> Скрыть комментарий</button>
+      <button type="button" id="reportCommentAction"><span data-icon="flag"></span> Пожаловаться</button>
+      <button type="button" id="blockCommentAuthorAction"><span data-icon="lock"></span> Заблокировать автора</button>
       <button type="button" id="saveStickerAction"><span data-icon="bookmark"></span> Сохранить стикер</button>
       <button type="button" id="cancelCommentContext">Отмена</button>
     </div>
@@ -442,6 +445,11 @@
             <span class="auth-checkbox-ui" aria-hidden="true"></span>
             <span>Я принимаю <button class="auth-agreement-link" id="authAgreementLink" type="button">Пользовательское соглашение</button></span>
           </label>
+          <label class="auth-agreement-check auth-privacy-check">
+            <input id="authPrivacyCheckbox" type="checkbox" />
+            <span class="auth-checkbox-ui" aria-hidden="true"></span>
+            <span>Я согласен(на) с <button class="auth-agreement-link" id="authPrivacyLink" type="button">Политикой конфиденциальности</button></span>
+          </label>
         </div>
         <button class="auth-submit" id="authSubmit">Войти</button>
         <button class="auth-forgot" id="authForgot" type="button">Забыли пароль?</button>
@@ -465,9 +473,29 @@
           <p><strong>6. Работа сервиса.</strong> Отдельные функции могут изменяться, временно становиться недоступными или прекращаться. Сервис не обещает постоянную доступность всех функций и сохранность пользовательского контента при технических сбоях.</p>
           <p><strong>7. Ответственность.</strong> Пользователь самостоятельно отвечает за законность опубликованных материалов, свои действия и предоставленные данные. Использование сервиса осуществляется с учётом применимого законодательства.</p>
           <p><strong>8. Изменение условий.</strong> Текст соглашения может обновляться. Новая редакция применяется после её публикации в сервисе, если иное не требуется законом.</p>
-          <p class="agreement-template-note">Юридические реквизиты владельца сервиса, контакты для обращений и специальные условия обработки данных при необходимости следует добавить в эту редакцию перед публичным запуском.</p>
+          <p>Подробная информация об обработке данных доступна в <button type="button" class="auth-agreement-link" id="agreementPrivacyInline">Политике конфиденциальности</button>. Контакты поддержки размещаются на странице поддержки и в карточке приложения RuStore.</p>
         </div>
         <button class="agreement-done" id="userAgreementDone" type="button">Понятно</button>
+      </div>
+    </div>
+
+    <div class="modal-overlay auth-centered" id="privacyPolicyModal">
+      <div class="modal-sheet agreement-sheet" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <button class="auth-close agreement-close" id="privacyPolicyClose" type="button" aria-label="Закрыть"><span data-icon="close"></span></button>
+        <div class="handle"></div>
+        <div class="agreement-badge"><span data-icon="lock"></span></div>
+        <h3 id="privacyTitle">Политика конфиденциальности</h3>
+        <div class="agreement-updated">Редакция: 25 сентября 2026 года</div>
+        <div class="agreement-content">
+          <p><strong>1. Что обрабатывается.</strong> Для работы аккаунта и социальных функций могут обрабатываться имя, email, username, аватар, описание профиля, публикации, комментарии, сообщения, реакции и технические сведения, необходимые для работы приложения.</p>
+          <p><strong>2. Зачем это нужно.</strong> Данные используются для входа, создания профиля, публикации и показа контента, работы комментариев, сообщений, подписок, уведомлений, модерации и защиты сервиса от злоупотреблений.</p>
+          <p><strong>3. Пользовательский контент.</strong> Загруженные фото, видео, аудио, стикеры, комментарии и сообщения обрабатываются только в объёме, необходимом для предоставления соответствующих функций и обеспечения безопасности.</p>
+          <p><strong>4. Разрешения устройства.</strong> Камера, микрофон, файлы/медиа и уведомления запрашиваются только при использовании функции, которой они необходимы. Разрешения можно изменить в настройках устройства.</p>
+          <p><strong>5. Хранение и безопасность.</strong> Доступ к данным ограничивается техническими и организационными мерами. Пользователь может запросить сведения об обработке своих данных и сообщить об ошибке или нарушении.</p>
+          <p><strong>6. Обращения.</strong> Актуальные контактные данные поддержки и владельца сервиса публикуются в карточке приложения и на странице поддержки.</p>
+          <p><strong>7. Изменения.</strong> Новая редакция публикуется в приложении до вступления изменений в действие, если иной порядок не требуется законом.</p>
+        </div>
+        <button class="agreement-done" id="privacyPolicyDone" type="button">Понятно</button>
       </div>
     </div>
 
@@ -534,6 +562,7 @@
   <script src="script_auth_db.js"></script>
   <script src="script_nav_feed.js"></script>
   <script src="script_profile_ui.js"></script>
+  <script src="countryFlags.js"></script>
   <script src="script_actions_init.js"></script>
 </body>
 </html>

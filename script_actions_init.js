@@ -591,6 +591,46 @@
       if(modal) modal.classList.remove('visible');
       if(stage) stage.innerHTML='';
     }
+    const blockedCommentAuthors = new Set();
+    function blockedUsersStorageKey(){ return `smotru:blocklist:${authUser?.id || 'guest'}`; }
+    function readBlockedUsersLocal(){
+      try { return new Set((JSON.parse(localStorage.getItem(blockedUsersStorageKey())||'[]')||[]).map(String)); } catch(_) { return new Set(); }
+    }
+    function writeBlockedUsersLocal(set){ try { localStorage.setItem(blockedUsersStorageKey(), JSON.stringify([...set].slice(0,500))); } catch(_) {} }
+    async function loadBlockedCommentAuthors(){
+      blockedCommentAuthors.clear();
+      readBlockedUsersLocal().forEach(id=>blockedCommentAuthors.add(id));
+      if(!authUser) return;
+      try{
+        const {data,error}=await db.from('user_blocks').select('blocked_id').eq('blocker_id',authUser.id);
+        if(error) throw error;
+        (data||[]).forEach(x=>{ if(x?.blocked_id) blockedCommentAuthors.add(String(x.blocked_id)); });
+      }catch(error){ console.warn('Blocked users load:', error?.message || error); }
+    }
+    async function reportCurrentComment(){
+      const commentId=String(currentCommentContextId||''); if(!commentId) return;
+      const user=await requireAuth('пожаловаться на комментарий'); if(!user) return;
+      try{
+        const {error}=await db.from('comment_reports').upsert({comment_id:commentId,reporter_id:user.id,reason:'other',details:''},{onConflict:'comment_id,reporter_id'});
+        if(error) throw error;
+        closeCommentContext(); showToast('Жалоба отправлена.');
+      }catch(error){ console.error(error); showToast('Не удалось отправить жалобу.'); }
+    }
+    async function blockCurrentCommentAuthor(){
+      const commentId=String(currentCommentContextId||''); if(!commentId) return;
+      const item=document.querySelector(`.comment-item[data-comment-id="${CSS.escape(commentId)}"]`);
+      const targetId=String(item?.dataset.userId||'');
+      if(!targetId) return;
+      const user=await requireAuth('заблокировать пользователя'); if(!user) return;
+      if(String(user.id)===targetId){ showToast('Нельзя заблокировать собственный аккаунт.'); return; }
+      try{
+        const {error}=await db.from('user_blocks').upsert({blocker_id:user.id,blocked_id:targetId},{onConflict:'blocker_id,blocked_id'});
+        if(error) throw error;
+      }catch(error){ console.warn('Remote block unavailable, using device block:', error?.message || error); }
+      blockedCommentAuthors.add(targetId); writeBlockedUsersLocal(blockedCommentAuthors);
+      closeCommentContext(); await openComments(currentCommentsVideoId); showToast('Пользователь заблокирован.');
+    }
+
     async function hideCommentById(commentId){
       const id=String(commentId||'');
       if(!id) return;
@@ -704,6 +744,8 @@
       });
       document.getElementById('stickerUploadInput').addEventListener('change', e => { const file=e.target.files?.[0]; if(file) addCustomSticker(file); e.target.value=''; });
       document.getElementById('hideCommentAction').addEventListener('click', hideCurrentComment);
+      document.getElementById('reportCommentAction')?.addEventListener('click', reportCurrentComment);
+      document.getElementById('blockCommentAuthorAction')?.addEventListener('click', blockCurrentCommentAuthor);
       document.getElementById('saveStickerAction').addEventListener('click', saveCurrentSticker);
       document.getElementById('cancelCommentContext').addEventListener('click', closeCommentContext);
       document.getElementById('stickerViewerClose')?.addEventListener('click', closeStickerViewer);
@@ -717,8 +759,12 @@
       document.getElementById('authSubmit').addEventListener('click', submitAuth);
       document.getElementById('authClose').addEventListener('click', closeModals);
       document.getElementById('authAgreementLink')?.addEventListener('click', openUserAgreement);
+      document.getElementById('authPrivacyLink')?.addEventListener('click', openPrivacyPolicy);
+      document.getElementById('agreementPrivacyInline')?.addEventListener('click', openPrivacyPolicy);
       document.getElementById('userAgreementClose')?.addEventListener('click', closeUserAgreement);
       document.getElementById('userAgreementDone')?.addEventListener('click', closeUserAgreement);
+      document.getElementById('privacyPolicyClose')?.addEventListener('click', closePrivacyPolicy);
+      document.getElementById('privacyPolicyDone')?.addEventListener('click', closePrivacyPolicy);
       document.getElementById('emailResendBtn').addEventListener('click', resendConfirmationEmail);
       document.getElementById('emailCancelBtn').addEventListener('click', closeModals);
       document.getElementById('authForgot').addEventListener('click', sendPasswordReset);
@@ -1482,6 +1528,7 @@
       const list = document.getElementById('commentsList');
       const donateBtn = document.getElementById('commentDonateBtn');
       const currentVideo = videos.find(x => String(x.id) === String(videoId));
+      await loadBlockedCommentAuthors();
       const policy = await getAuthorPrivacy(videoId);
       const author = policy.author || currentVideo?.author;
       if(!policy.comments && author){ showToast(author.whoCanComment==='none'?'Автор запретил комментарии.':'Комментарии доступны только подписчикам.'); return; }
@@ -1502,7 +1549,7 @@
           (profiles || []).forEach(p => profileCache.set(p.id, userFromProfile(p)));
         }
         await loadCommentInteractionState((data || []).map(c => c.id));
-        const visible = (data || []).filter(c => !hiddenCommentIds.has(c.id));
+        const visible = (data || []).filter(c => !hiddenCommentIds.has(c.id) && !blockedCommentAuthors.has(String(c.user_id || '')));
         let donationEvents = [];
         if (author?.id && author?.donationConnected) {
           try { donationEvents = await loadDonationComments(videoId, author.id); }
@@ -1515,7 +1562,7 @@
           const count = Number(c.likes_count || 0);
           const liked = likedCommentIds.has(c.id);
           const content = type === 'sticker' && c.sticker_id ? (c.sticker_url ? `<button type="button" class="comment-sticker" data-sticker-view-url="${escapeHtml(c.sticker_url)}" data-sticker-view-id="${escapeHtml(c.sticker_id)}" aria-label="Открыть стикер на весь экран"><img src="${escapeHtml(c.sticker_url)}" alt="Стикер" /></button>` : `<button type="button" class="comment-sticker" data-sticker-view-id="${escapeHtml(c.sticker_id)}" aria-label="Открыть стикер на весь экран">${stickerSvg(c.sticker_id,74)}</button>`) : `<div class="c-text comment-textual">${escapeHtml(c.text || c.content || '')}</div>`;
-          return `<div class="comment-item" data-comment-id="${escapeHtml(c.id)}" data-comment-type="${escapeHtml(type)}" data-sticker-id="${escapeHtml(c.sticker_id || '')}" data-sticker-url="${escapeHtml(c.sticker_url || '')}"><div class="c-avatar comment-author-avatar" data-userid="${escapeHtml(c.user_id || '')}" role="button" tabindex="0" aria-label="Открыть профиль ${escapeHtml(u.name)}"><img src="${escapeHtml(u.avatar)}" alt="" /></div><div class="comment-main"><div class="c-name">${escapeHtml(u.name)}</div>${content}<div class="comment-actions"><button type="button" class="comment-like-btn ${liked?'liked':''}" data-comment-like="${escapeHtml(c.id)}" data-count="${count}" aria-label="Нравится">${icon(liked?'heartFill':'heart',16)} <span>${formatCount(count)}</span></button><button type="button" class="comment-hide-btn" data-hide-comment="${escapeHtml(c.id)}" aria-label="Скрыть комментарий">${icon('eye',16)} <span>Скрыть</span></button></div></div></div>`;
+          return `<div class="comment-item" data-comment-id="${escapeHtml(c.id)}" data-comment-type="${escapeHtml(type)}" data-user-id="${escapeHtml(c.user_id || '')}" data-sticker-id="${escapeHtml(c.sticker_id || '')}" data-sticker-url="${escapeHtml(c.sticker_url || '')}"><div class="c-avatar comment-author-avatar" data-userid="${escapeHtml(c.user_id || '')}" role="button" tabindex="0" aria-label="Открыть профиль ${escapeHtml(u.name)}"><img src="${escapeHtml(u.avatar)}" alt="" /></div><div class="comment-main"><div class="c-name">${escapeHtml(u.name)}</div>${content}<div class="comment-actions"><button type="button" class="comment-like-btn ${liked?'liked':''}" data-comment-like="${escapeHtml(c.id)}" data-count="${count}" aria-label="Нравится">${icon(liked?'heartFill':'heart',16)} <span>${formatCount(count)}</span></button><button type="button" class="comment-hide-btn" data-hide-comment="${escapeHtml(c.id)}" aria-label="Скрыть комментарий">${icon('eye',16)} <span>Скрыть</span></button></div></div></div>`;
         }).join('');
         const emptyRegular = `<div class="empty-state" style="padding:18px 10px"><div class="icon">${icon('message',30)}</div><div>${visible.length ? '' : 'Пока нет обычных комментариев.'}</div></div>`;
         const donationsMarkup = renderDonationSection(donationEvents);
@@ -1549,6 +1596,11 @@
         const { error } = await db.from('comments').insert({ user_id:user.id, video_id:currentCommentsVideoId, text, content:text, comment_type:'text' });
         if (error) throw error;
         input.value = ''; await openComments(currentCommentsVideoId);
+        if (window.SmotruCountryFlags) {
+          const countryMatches = window.SmotruCountryFlags.detectCountries(text);
+          window.SmotruCountryFlags.flashCommentCountryWords(text, user.id, countryMatches);
+          window.SmotruCountryFlags.enqueueFromComment(text, countryMatches);
+        }
         const v=videos.find(x=>x.id===currentCommentsVideoId); if(v){v.comments++; if(v.remote) await refreshVideo(v.id);}
         const card=document.querySelector(`.video-card[data-id="${CSS.escape(currentCommentsVideoId)}"]`); if(card) card.querySelector('.comment-btn .count').textContent=formatCount(v?.comments||0);
       } catch (error) {

@@ -26,6 +26,8 @@
       const agreementCheckbox = document.getElementById('authAgreementCheckbox');
       if (agreement) agreement.classList.toggle('hidden', mode !== 'signup');
       if (mode !== 'signup' && agreementCheckbox) agreementCheckbox.checked = false;
+      const privacyCheckbox = document.getElementById('authPrivacyCheckbox');
+      if (mode !== 'signup' && privacyCheckbox) privacyCheckbox.checked = false;
       document.getElementById('authPassword').autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
     }
 
@@ -40,10 +42,17 @@
       }
       if (authMode === 'signup') {
         const agreementCheckbox = document.getElementById('authAgreementCheckbox');
+        const privacyCheckbox = document.getElementById('authPrivacyCheckbox');
         if (!agreementCheckbox?.checked) {
           const authError = document.getElementById('authError');
           if (authError) authError.textContent = 'Для регистрации нужно принять Пользовательское соглашение.';
           agreementCheckbox?.focus();
+          return;
+        }
+        if (!privacyCheckbox?.checked) {
+          const authError = document.getElementById('authError');
+          if (authError) authError.textContent = 'Для регистрации нужно согласиться с Политикой конфиденциальности.';
+          privacyCheckbox?.focus();
           return;
         }
       }
@@ -61,7 +70,10 @@
                 display_name: name || email.split('@')[0],
                 user_agreement_accepted: true,
                 user_agreement_version: '2026-09-24',
-                user_agreement_accepted_at: agreementAcceptedAt
+                user_agreement_accepted_at: agreementAcceptedAt,
+                privacy_policy_accepted: true,
+                privacy_policy_version: '2026-09-25',
+                privacy_policy_accepted_at: agreementAcceptedAt
               },
               emailRedirectTo: getAuthRedirectUrl()
             }
@@ -121,6 +133,17 @@
 
     function closeUserAgreement() {
       document.getElementById('userAgreementModal')?.classList.remove('visible');
+    }
+
+    function openPrivacyPolicy() {
+      const modal = document.getElementById('privacyPolicyModal');
+      if (!modal) return;
+      modal.classList.add('visible');
+      hydrateIcons(modal);
+    }
+
+    function closePrivacyPolicy() {
+      document.getElementById('privacyPolicyModal')?.classList.remove('visible');
     }
 
 

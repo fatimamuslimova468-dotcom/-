@@ -1407,6 +1407,7 @@
     }
 
     #commentsModal .modal-sheet {
+      position: relative;
       max-height: 88%;
       display: flex;
       flex-direction: column;
@@ -1728,4 +1729,86 @@ html, body, #app {
 @media (max-width:600px){
   .sticker-viewer-stage { padding:18px; }
   .sticker-viewer-image, .sticker-viewer-svg { width:min(88vw, 70vh, 460px); height:min(88vw, 70vh, 460px); }
+}
+
+/* ========== COUNTRY FLAG + COAT OF ARMS COMMENT EASTER EGG ========== */
+.country-flag-animation-layer {
+  position:absolute;
+  z-index:35;
+  inset:52px 0 82px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:12px;
+  pointer-events:none;
+  overflow:hidden;
+  contain:layout paint;
+}
+.country-flag-card {
+  position:relative;
+  width:min(228px, 58vw);
+  min-height:196px;
+  padding:18px 18px 14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(31,31,36,.88),rgba(17,17,20,.80));
+  box-shadow:0 18px 55px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(13px);
+  -webkit-backdrop-filter:blur(13px);
+  transform:translate3d(0,20px,0) scale(.82);
+  opacity:0;
+  will-change:transform,opacity;
+  animation:countryFlagCardIn .42s cubic-bezier(.18,.82,.25,1.14) forwards,
+             countryFlagCardHold 1s ease .42s forwards,
+             countryFlagCardOut .33s cubic-bezier(.4,0,.75,.2) 1.42s forwards;
+}
+.country-flag-card.reduced-motion {
+  animation:countryFlagCardInReduced .24s ease forwards,
+             countryFlagCardOut .25s ease .38s forwards;
+}
+.country-flag-glow { position:absolute; inset:12px; border-radius:19px; background:radial-gradient(circle at 50% 30%,rgba(160,120,255,.18),transparent 65%); filter:blur(8px); opacity:.8; pointer-events:none; }
+.country-flag-media { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; gap:14px; width:100%; min-height:104px; }
+.country-flag-visual { position:relative; width:148px; display:flex; align-items:center; justify-content:center; }
+.country-flag-emoji { display:block; font-size:68px; line-height:1; filter:drop-shadow(0 7px 15px rgba(0,0,0,.24)); transform-origin:50% 75%; animation:countryFlagWave .68s ease-in-out .4s 2 alternate; }
+.country-flag-image { display:block; width:min(138px,34vw); height:auto; max-height:86px; object-fit:contain; border-radius:7px; box-shadow:0 7px 18px rgba(0,0,0,.26); transform-origin:50% 75%; animation:countryFlagWave .68s ease-in-out .4s 2 alternate; }
+.country-coat-visual { width:56px; height:86px; display:flex; align-items:center; justify-content:center; }
+.country-coat-image { display:block; width:54px; height:78px; object-fit:contain; filter:drop-shadow(0 6px 12px rgba(0,0,0,.24)); animation:countryCoatFloat .72s ease-in-out .46s 2 alternate; }
+.country-media-fallback { display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.88); font-weight:800; font-size:26px; }
+.country-coat-visual .country-media-fallback { width:54px; height:78px; border-radius:12px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); }
+.country-flag-title { position:relative; z-index:1; max-width:100%; color:#fff; font-size:14px; font-weight:700; line-height:1.15; text-align:center; text-wrap:balance; text-shadow:0 1px 8px rgba(0,0,0,.24); }
+.country-flag-particle { position:absolute; z-index:1; width:4px; height:4px; border-radius:50%; background:rgba(207,184,255,.82); box-shadow:0 0 9px rgba(167,132,255,.7); opacity:0; animation:countryFlagParticle 1.05s ease-out .5s 1 forwards; }
+.country-flag-particle-1 { left:17%; top:39%; }
+.country-flag-particle-2 { right:18%; top:30%; animation-delay:.62s; }
+.country-flag-particle-3 { left:25%; bottom:25%; animation-delay:.55s; }
+.country-flag-particle-4 { right:28%; bottom:20%; animation-delay:.68s; }
+.low-performance .country-flag-card { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; box-shadow:0 12px 32px rgba(0,0,0,.28); }
+.low-performance .country-coat-image { animation:none !important; }
+.country-name-flash { display:inline; border-radius:4px; box-shadow:0 0 0 1px rgba(180,150,255,.08),0 0 12px rgba(168,130,255,.46); background:rgba(168,130,255,.08); animation:countryNameFlash .58s ease both; }
+@keyframes countryFlagCardIn { 0%{opacity:0;transform:translate3d(0,22px,0) scale(.82);filter:blur(5px)} 65%{opacity:1;transform:translate3d(0,-2px,0) scale(1.035);filter:blur(0)} 100%{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)} }
+@keyframes countryFlagCardHold { 0%,100%{transform:translate3d(0,0,0) scale(1)} }
+@keyframes countryFlagCardOut { 0%{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)} 100%{opacity:0;transform:translate3d(0,-10px,0) scale(.96);filter:blur(3px)} }
+@keyframes countryFlagCardInReduced { 0%{opacity:0;transform:scale(.94)} 100%{opacity:1;transform:scale(1)} }
+@keyframes countryFlagWave { 0%,100%{transform:rotate(-1.6deg) translate3d(0,0,0)} 50%{transform:rotate(1.6deg) translate3d(0,-1px,0)} }
+@keyframes countryCoatFloat { 0%,100%{transform:translate3d(0,1px,0) rotate(-1deg)} 50%{transform:translate3d(0,-2px,0) rotate(1deg)} }
+@keyframes countryFlagParticle { 0%{opacity:0;transform:translate3d(0,8px,0) scale(.65)} 25%{opacity:.9} 100%{opacity:0;transform:translate3d(0,-20px,0) scale(1.08)} }
+@keyframes countryNameFlash { 0%{background:rgba(168,130,255,.12);box-shadow:0 0 0 1px rgba(180,150,255,.16),0 0 14px rgba(168,130,255,.52)} 100%{background:transparent;box-shadow:none} }
+@media(max-width:600px){
+  .country-flag-animation-layer{inset:48px 0 74px}
+  .country-flag-card{width:min(194px,68vw);min-height:172px;padding:14px 13px 11px;border-radius:18px}
+  .country-flag-media{gap:10px;min-height:88px}
+  .country-flag-visual{width:116px}
+  .country-flag-emoji{font-size:56px}
+  .country-flag-image{width:min(108px,36vw);max-height:66px}
+  .country-coat-visual{width:48px;height:72px}
+  .country-coat-image,.country-coat-visual .country-media-fallback{width:46px;height:66px}
+  .country-flag-title{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+  .country-flag-card,.country-flag-card.reduced-motion,.country-flag-emoji,.country-flag-image,.country-coat-image,.country-name-flash{animation-duration:.26s!important;animation-iteration-count:1!important}
+  .country-flag-particle{display:none}
 }

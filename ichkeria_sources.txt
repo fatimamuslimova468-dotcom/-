@@ -1,0 +1,38 @@
+Country animation media sources
+
+Flags: https://flagcdn.com/w160/{ISO2}.png
+Coats of arms: https://mainfacts.com/media/images/coats_of_arms/{ISO2}.svg
+Ichkeria flag: ichkeria.svg
+Ichkeria coat: https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Chechen_Republic_of_Ichkeria.svg
+
+This project keeps country media outside the database and lazy-loads only media needed by the current animation. Verify the redistribution terms for the exact assets used in the commercial store release.
+
+russia: ru
+ukraine: ua
+germany: de
+france: fr
+unitedKingdom: gb
+usa: us
+china: cn
+japan: jp
+southKorea: kr
+turkey: tr
+italy: it
+spain: es
+portugal: pt
+brazil: br
+canada: ca
+australia: au
+india: in
+kazakhstan: kz
+belarus: by
+armenia: am
+georgia: ge
+azerbaijan: az
+uzbekistan: uz
+kyrgyzstan: kg
+tajikistan: tj
+turkmenistan: tm
+israel: il
+egypt: eg
+uae: ae
