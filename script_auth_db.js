@@ -330,7 +330,7 @@
       const { data, error } = await db.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
       if (error) throw error;
       if (data) {
-        const u = userFromProfile(data);
+        const u = applyUserSettingsToUser(userFromProfile(data));
         profileCache.set(u.id, u);
         currentUser = u;
         return u;
@@ -348,7 +348,7 @@
       };
       const created = await db.from('profiles').upsert(insert, { onConflict: 'id' }).select('*').single();
       if (created.error) throw created.error;
-      const u = userFromProfile(created.data);
+      const u = applyUserSettingsToUser(userFromProfile(created.data));
       profileCache.set(u.id, u);
       currentUser = u;
       return u;

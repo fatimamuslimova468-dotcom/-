@@ -753,6 +753,11 @@
       document.getElementById('chatSendBtn')?.addEventListener('click', sendChatMessage);
       document.getElementById('chatBackBtn')?.addEventListener('click', closeDirectChat);
       document.getElementById('chatCloseBtn')?.addEventListener('click', closeDirectChat);
+      document.getElementById('chatContextDelete')?.addEventListener('click', deleteChatFromContext);
+      document.getElementById('chatContextRename')?.addEventListener('click', renameChatFromContext);
+      document.getElementById('chatContextBlock')?.addEventListener('click', blockChatFromContext);
+      document.getElementById('messageContextEdit')?.addEventListener('click', editCurrentMessage);
+      document.getElementById('messageContextDelete')?.addEventListener('click', deleteCurrentMessage);
       document.getElementById('chatInput')?.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChatMessage(); } });
       document.getElementById('chatInput')?.addEventListener('input', e => { e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,110)+'px'; });
       document.querySelectorAll('.auth-tab').forEach(t => t.addEventListener('click', () => setAuthMode(t.dataset.authMode)));
@@ -786,21 +791,57 @@
       document.getElementById('profileEditUsername').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,30); });
       document.getElementById('profileEditBio').addEventListener('input', updateProfileBioCounter);
       document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
-      document.addEventListener('click', e => { if (!e.target.closest('#commentContextMenu') && !e.target.closest('.comment-item')) closeCommentContext(); });
+      document.addEventListener('click', e => {
+        if (!e.target.closest('#commentContextMenu') && !e.target.closest('.comment-item')) closeCommentContext();
+        if (!e.target.closest('#chatContextMenu') && !e.target.closest('.chat-list-item')) closeChatContext();
+        if (!e.target.closest('#messageContextMenu') && !e.target.closest('.chat-message')) closeMessageContext();
+      });
       document.addEventListener('contextmenu', e => {
+        const chatItem=e.target.closest('.chat-list-item[data-chat-conversation-id]');
+        if(chatItem){
+          e.preventDefault();
+          openChatContext(chatItem.dataset.chatConversationId,chatItem.dataset.chatPartnerId,chatItem.dataset.chatName,e.clientX,e.clientY);
+          return;
+        }
+        const messageItem=e.target.closest('.chat-message[data-message-id]');
+        if(messageItem && messageItem.classList.contains('mine')){
+          e.preventDefault();
+          openMessageContext(messageItem.dataset.messageId,e.clientX,e.clientY);
+          return;
+        }
         const item=e.target.closest('.comment-item[data-comment-id]');
         if(!item) return;
         e.preventDefault(); openCommentContext(item.dataset.commentId,item.dataset.stickerId,item.dataset.stickerUrl,e.clientX,e.clientY);
       });
+      let messageLongPressTimer = null;
       document.addEventListener('touchstart', e => {
+        const chatItem=e.target.closest('.chat-list-item[data-chat-conversation-id]');
+        if(chatItem){
+          const touch=e.touches[0];
+          if(chatLongPressTimer) clearTimeout(chatLongPressTimer);
+          chatLongPressTimer=setTimeout(()=>{
+            suppressChatClickUntil=Date.now()+900;
+            openChatContext(chatItem.dataset.chatConversationId,chatItem.dataset.chatPartnerId,chatItem.dataset.chatName,touch.clientX,touch.clientY);
+          },550);
+        }
+        const messageItem=e.target.closest('.chat-message[data-message-id]');
+        if(messageItem && messageItem.classList.contains('mine')){
+          const touch=e.touches[0];
+          if(messageLongPressTimer) clearTimeout(messageLongPressTimer);
+          messageLongPressTimer=setTimeout(()=>{ openMessageContext(messageItem.dataset.messageId,touch.clientX,touch.clientY); },550);
+        }
         const item=e.target.closest('.comment-item[data-comment-id]'); if(!item || item.dataset.commentType!=='sticker') return;
         const touch=e.touches[0];
         commentLongPressTimer=setTimeout(()=>openCommentContext(item.dataset.commentId,item.dataset.stickerId,item.dataset.stickerUrl,touch.clientX,touch.clientY),550);
       }, {passive:true});
-      ['touchend','touchmove','touchcancel'].forEach(type=>document.addEventListener(type,()=>{if(commentLongPressTimer){clearTimeout(commentLongPressTimer);commentLongPressTimer=null;}},{passive:true}));
+      ['touchend','touchmove','touchcancel'].forEach(type=>document.addEventListener(type,()=>{
+        if(commentLongPressTimer){clearTimeout(commentLongPressTimer);commentLongPressTimer=null;}
+        if(chatLongPressTimer){clearTimeout(chatLongPressTimer);chatLongPressTimer=null;}
+        if(messageLongPressTimer){clearTimeout(messageLongPressTimer);messageLongPressTimer=null;}
+      },{passive:true}));
     }
 
-    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeStickerPicker(); closeStickerViewer(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; currentDownloadVideoId = null; }
+    function closeModals() { stopRecoveryResendTimer(); document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); closeCommentContext(); closeChatContext(); closeMessageContext(); closeStickerPicker(); closeStickerViewer(); resetProfileEditDraft(); profileEditOriginal = null; profileEditAvatarUrl = ''; currentShareVideoId = null; currentDownloadVideoId = null; }
     function openSpeedModal() { closeModals(); document.getElementById('speedModal').classList.add('visible'); }
     function openMore(videoId) {
       currentMoreVideoId = videoId;
@@ -1058,12 +1099,12 @@
       document.querySelectorAll('.modal-overlay').forEach(m=>{if(m.id!=='shareFriendModal')m.classList.remove('visible');});
       document.getElementById('shareFriendModal')?.classList.add('visible');
       try{
-        const {data:memberships,error:membershipError}=await db.from('conversation_members').select('conversation_id').eq('user_id',user.id); if(membershipError)throw membershipError;
-        const ids=[...new Set((memberships||[]).map(x=>x.conversation_id).filter(Boolean))];
+        const {data:memberships,error:membershipError}=await db.from('conversation_members').select('conversation_id,hidden_at').eq('user_id',user.id); if(membershipError)throw membershipError;
+        const ids=[...new Set((memberships||[]).filter(x=>!x.hidden_at).map(x=>x.conversation_id).filter(Boolean))];
         if(!ids.length){list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',34)}</div><div>У вас пока нет личных чатов.</div><button class="share-friend-empty-btn" type="button" onclick="closeModals();showScreen('inbox')">Открыть чаты</button></div>`;hydrateIcons(list);return;}
         const [{data:conversations,error:convError},{data:members,error:membersError}]=await Promise.all([
           db.from('conversations').select('id,type,last_text,updated_at').in('id',ids).eq('type','private'),
-          db.from('conversation_members').select('conversation_id,user_id').in('conversation_id',ids)
+          db.from('conversation_members').select('conversation_id,user_id,hidden_at').in('conversation_id',ids)
         ]); if(convError)throw convError;if(membersError)throw membersError;
         const otherIds=[...new Set((members||[]).filter(m=>String(m.user_id)!==String(user.id)).map(m=>m.user_id).filter(Boolean))];
         const {data:profiles}=otherIds.length?await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id',otherIds):{data:[]};
@@ -1198,7 +1239,7 @@
           donationalerts_enabled: enabled
         }).eq('id', user.id).select('*').single();
         if (error) throw error;
-        currentUser = userFromProfile(data);
+        currentUser = applyUserSettingsToUser(userFromProfile(data));
         profileCache.set(currentUser.id, currentUser);
         if (userSettings) renderSettings();
         renderFeed({ reshuffle:false });
@@ -1274,8 +1315,9 @@
       if(!allowed || suppressed || userSettings.push_enabled!==true || !('Notification' in window) || Notification.permission!=='granted') return;
       try{
         const actor=row.actor_id&&profileCache.get(row.actor_id);
-        const title=row.type==='donation'?'Новый донат':row.type==='message'?'Новое сообщение':'Смотрю';
-        new Notification(title,{body:`${actor?.name?actor.name+': ':''}${row.text||'Новое событие в вашем аккаунте'}`,tag:`smotriu-${row.id}`});
+        const title=row.type==='donation'?'Новый донат':row.type==='message'?'Новое сообщение':row.type==='comment'?'Новый комментарий':'Смотрю';
+        const nativeNotice=new Notification(title,{body:`${actor?.name?actor.name+': ':''}${row.text||'Новое событие в вашем аккаунте'}`,tag:`smotriu-${row.id}`});
+        nativeNotice.onclick=()=>{ try{window.focus();}catch(_){} openNotificationSource(row).catch(()=>{}); nativeNotice.close?.(); };
       }catch(e){ console.warn('browser notification',e); }
     }
     function setupInboxRealtime(){

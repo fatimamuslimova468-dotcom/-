@@ -374,13 +374,24 @@
       <button type="button" id="cancelCommentContext">Отмена</button>
     </div>
 
+    <div class="chat-context-menu" id="chatContextMenu">
+      <button type="button" id="chatContextRename"><span data-icon="edit"></span> Переименовать</button>
+      <button type="button" id="chatContextBlock"><span data-icon="lock"></span> Заблокировать</button>
+      <button type="button" id="chatContextDelete" class="danger"><span data-icon="trash"></span> Удалить чат</button>
+    </div>
+
+    <div class="message-context-menu" id="messageContextMenu">
+      <button type="button" id="messageContextEdit"><span data-icon="edit"></span> Изменить сообщение</button>
+      <button type="button" id="messageContextDelete" class="danger"><span data-icon="trash"></span> Удалить сообщение</button>
+    </div>
+
     <div class="modal-overlay auth-centered profile-edit-overlay" id="profileEditModal">
       <div class="modal-sheet profile-edit-sheet">
         <div class="profile-edit-head">
           <h3>Редактирование профиля</h3>
           <button class="profile-edit-close" id="profileEditClose" type="button" aria-label="Закрыть"><span data-icon="close"></span></button>
         </div>
-        <div class="profile-edit-subtitle">Аватар, ник и username можно менять только один раз в 7 дней.</div>
+        <div class="profile-edit-subtitle">Ник и username можно менять раз в 7 дней. Аватар и описание профиля — в любое время.</div>
         <div class="profile-edit-cooldown" id="profileEditCooldown">
           <span class="cooldown-icon" data-icon="lock"></span>
           <span id="profileEditCooldownText"></span>
@@ -558,11 +569,11 @@
       </div>
     </div>
   <!-- performance-optimized -->
-  <script src="script_core.js"></script>
-  <script src="script_auth_db.js"></script>
-  <script src="script_nav_feed.js"></script>
-  <script src="script_profile_ui.js"></script>
-  <script src="countryFlags.js"></script>
-  <script src="script_actions_init.js"></script>
+  <script src="script_core.js?v=20261005-privacy-fix"></script>
+  <script src="script_auth_db.js?v=20261005-privacy-fix"></script>
+  <script src="script_nav_feed.js?v=20261005-privacy-fix"></script>
+  <script src="script_profile_ui.js?v=20261005-privacy-fix"></script>
+  <script src="countryFlags.js?v=20261005-privacy-fix"></script>
+  <script src="script_actions_init.js?v=20261005-privacy-fix"></script>
 </body>
 </html>

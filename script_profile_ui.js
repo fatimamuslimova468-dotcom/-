@@ -253,17 +253,21 @@
       profileEditSelectedFile = null;
     }
 
-    function updateProfileEditLock(canEdit, deadline = null) {
-      const fields = ['profileEditAvatarBtn','profileEditName','profileEditUsername','profileEditBio','profileEditAvatarInput'];
-      fields.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !canEdit; });
+    function updateProfileEditLock(canChangeIdentity, deadline = null) {
+      // Аватар и описание доступны всегда. Ограничение в 7 дней относится
+      // только к отображаемому имени (ник) и username.
+      const alwaysEditable = ['profileEditAvatarBtn','profileEditBio','profileEditAvatarInput'];
+      alwaysEditable.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+      const identityFields = ['profileEditName','profileEditUsername'];
+      identityFields.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !canChangeIdentity; });
       const save = document.getElementById('profileEditSave');
-      if (save) save.disabled = !canEdit || profileEditBusy;
+      if (save) save.disabled = profileEditBusy;
       const cooldown = document.getElementById('profileEditCooldown');
       const cooldownText = document.getElementById('profileEditCooldownText');
-      if (cooldown) cooldown.classList.toggle('visible', !canEdit);
-      if (cooldownText && !canEdit && deadline) {
+      if (cooldown) cooldown.classList.toggle('visible', !canChangeIdentity);
+      if (cooldownText && !canChangeIdentity && deadline) {
         const date = new Date(deadline);
-        cooldownText.innerHTML = `Сейчас профиль редактировать нельзя. Следующее изменение доступно примерно через <b>${escapeHtml(formatProfileEditCooldown(deadline))}</b>, <span>${escapeHtml(date.toLocaleString('ru-RU', { dateStyle:'medium', timeStyle:'short' }))}</span>.`;
+        cooldownText.innerHTML = `Ник и username сейчас менять нельзя. Новое изменение доступно примерно через <b>${escapeHtml(formatProfileEditCooldown(deadline))}</b>, <span>${escapeHtml(date.toLocaleString('ru-RU', { dateStyle:'medium', timeStyle:'short' }))}</span>. Аватар и описание можно менять в любое время.`;
       }
     }
 
@@ -285,8 +289,8 @@
         updateProfileBioCounter();
         document.getElementById('profileEditAvatarPreview').src = profileEditAvatarUrl;
         const deadline = profileEditDeadline(data.profile_edit_last_at);
-        const canEdit = !deadline || Date.now() >= deadline;
-        updateProfileEditLock(canEdit, deadline);
+        const canChangeIdentity = !deadline || Date.now() >= deadline;
+        updateProfileEditLock(canChangeIdentity, deadline);
         const modal = document.getElementById('profileEditModal');
         modal.classList.add('visible');
         hydrateIcons(modal);
@@ -320,8 +324,16 @@
       const oldUsername = profileEditOriginal.username || '';
       const oldBio = profileEditOriginal.bio || '';
       const oldAvatar = safeUrl(profileEditOriginal.avatar_url) || fallbackAvatar(oldName);
-      const changed = name !== oldName || username !== oldUsername || bio !== oldBio || Boolean(profileEditSelectedFile) || (profileEditAvatarUrl && profileEditAvatarUrl !== oldAvatar && profileEditAvatarUrl !== profileEditObjectUrl);
+      const identityChanged = name !== oldName || username !== oldUsername;
+      const changed = identityChanged || bio !== oldBio || Boolean(profileEditSelectedFile) || (profileEditAvatarUrl && profileEditAvatarUrl !== oldAvatar && profileEditAvatarUrl !== profileEditObjectUrl);
       if (!changed) { closeModals(); return; }
+      const identityDeadline = profileEditDeadline(profileEditOriginal.profile_edit_last_at);
+      const canChangeIdentity = !identityDeadline || Date.now() >= identityDeadline;
+      if (identityChanged && !canChangeIdentity) {
+        if (errorEl) errorEl.textContent = 'Ник и username можно менять только один раз в 7 дней.';
+        updateProfileEditLock(false, identityDeadline);
+        return;
+      }
 
       profileEditBusy = true;
       const saveBtn = document.getElementById('profileEditSave');
@@ -384,6 +396,7 @@
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Сохранить'; }
         const deadline = profileEditDeadline(profileEditOriginal?.profile_edit_last_at);
         if (deadline && Date.now() < deadline) updateProfileEditLock(false, deadline);
+        else updateProfileEditLock(true, null);
       }
     }
 
@@ -442,8 +455,8 @@
       ['content','Контент','flag'],['data','Данные и трафик','refresh'],['donations','Донаты','donate'],['security','Безопасность','lock'],['safety','Правила и помощь','shield']
     ];
     const DEFAULT_SETTINGS = {
-      theme:'dark',language:'ru',autoplay:true,data_saver:false,video_quality:'auto',private_account:false,
-      who_can_comment:'all',who_can_message:'all',who_can_duet:'all',hide_likes:false,allow_downloads:true,
+      theme:'dark',language:'ru',autoplay:true,data_saver:false,private_account:false,
+      who_can_comment:'all',who_can_message:'all',hide_likes:false,allow_downloads:true,
       push_enabled:false,notify_likes:true,notify_comments:true,notify_follows:true,notify_mentions:true,
       notify_reposts:true,notify_messages:true,notify_donations:true,email_notifications:true,dnd_from:'',dnd_to:'',content_filter_level:0,
       screen_time_limit:0,break_reminder:false,hidden_words:[],
@@ -481,19 +494,30 @@
       try{ profileRow=await fetchProfileById(authUser.id); }
       catch(e){ console.warn('profile settings load',e); }
 
+      let notificationPrefs=null;
+      try{
+        const {data,error}=await db.from('notification_preferences').select('push_enabled,email_enabled').eq('user_id',authUser.id).maybeSingle();
+        if(!error) notificationPrefs=data||null;
+        else console.warn('notification_preferences load', error?.message || error);
+      }catch(e){ console.warn('notification_preferences load',e); }
+
       const flat=settingsRow&&typeof settingsRow==='object'?settingsRow:{};
       const nested=flat.settings&&typeof flat.settings==='object'?flat.settings:{};
       const merged={...DEFAULT_SETTINGS,...local,...nested};
       Object.keys(DEFAULT_SETTINGS).forEach(k=>{ if(Object.prototype.hasOwnProperty.call(flat,k)) merged[k]=flat[k]; });
+      if(notificationPrefs){
+        if(Object.prototype.hasOwnProperty.call(notificationPrefs,'push_enabled')) merged.push_enabled=Boolean(notificationPrefs.push_enabled);
+        if(Object.prototype.hasOwnProperty.call(notificationPrefs,'email_enabled')) merged.email_notifications=Boolean(notificationPrefs.email_enabled);
+      }
       if(profileRow){
+        // is_private/hide_likes are public profile fields. The remaining privacy
+        // controls live in user_settings and must never be read from profiles.
         merged.private_account=Boolean(profileRow.is_private);
         merged.hide_likes=Boolean(profileRow.hide_likes);
-        merged.who_can_comment=profileRow.who_can_comment||'all';
-        merged.who_can_message=profileRow.who_can_message||'all';
-        merged.who_can_duet=profileRow.who_can_duet||'all';
-        merged.allow_downloads=profileRow.allow_downloads!==false;
       }
-      userSettings=merged; cacheLocalSettings(); applyAllSettings();
+      userSettings=merged;
+      if(authUser && currentUser && String(currentUser.id)===String(authUser.id)) currentUser=applyUserSettingsToUser(currentUser);
+      cacheLocalSettings(); applyAllSettings();
     }
 
     function applyTheme(){
@@ -536,6 +560,92 @@
       const key=({like:'notify_likes',comment:'notify_comments',follow:'notify_follows',message:'notify_messages',mention:'notify_mentions',repost:'notify_reposts',donation:'notify_donations'})[type];
       return key ? userSettings[key]!==false : true;
     }
+
+    function notificationIconName(type){
+      return ({message:'message',like:'heartFill',comment:'message',follow:'userPlus',donation:'donate',repost:'share',mention:'message'})[type] || 'refresh';
+    }
+
+    async function markNotificationRead(notificationId){
+      if(!authUser || !notificationId) return;
+      try{
+        await db.from('notifications').update({is_read:true,read_at:new Date().toISOString()})
+          .eq('user_id',authUser.id).eq('id',notificationId);
+      }catch(e){ console.warn('markNotificationRead',e); }
+    }
+
+    async function openExistingChatFromNotification(conversationId, partnerId){
+      if(!authUser || !conversationId) return false;
+      const cid=String(conversationId), pid=String(partnerId||'');
+      try{
+        const {data:membership,error:membershipError}=await db.from('conversation_members')
+          .select('conversation_id,user_id,custom_name,hidden_at').eq('conversation_id',cid).eq('user_id',authUser.id).maybeSingle();
+        if(membershipError) throw membershipError;
+        if(!membership){ showToast('Чат больше недоступен.'); return false; }
+        let targetId=pid;
+        if(!targetId){
+          const {data:members,error:membersError}=await db.from('conversation_members').select('user_id')
+            .eq('conversation_id',cid).neq('user_id',authUser.id).limit(1);
+          if(membersError) throw membersError;
+          targetId=members?.[0]?.user_id || '';
+        }
+        if(!targetId){ showToast('Не удалось определить собеседника.'); return false; }
+        const partnerRow=await fetchProfileById(targetId);
+        if(!partnerRow) throw new Error('USER_NOT_FOUND');
+        const partner=userFromProfile(partnerRow);
+        activeChatId=cid; activeChatPartnerId=targetId;
+        if(membership.hidden_at){
+          await db.from('conversation_members').update({hidden_at:null,unread_count:0,updated_at:new Date().toISOString()})
+            .eq('conversation_id',cid).eq('user_id',authUser.id);
+        }
+        document.getElementById('chatHeadName').textContent=membership.custom_name || partner.name || 'Пользователь';
+        document.getElementById('chatHeadName').dataset.partnerName=partner.name||'Пользователь';
+        document.getElementById('chatHeadStatus').textContent=`@${partner.username||'user'}`;
+        document.getElementById('chatHeadAvatar').src=partner.avatar||fallbackAvatar(partner.name||'П');
+        document.getElementById('chatBody').innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Загрузка сообщений…</div></div>`;
+        closeChatContext();
+        document.getElementById('chatModal').classList.add('visible');
+        hydrateIcons(document.getElementById('chatModal'));
+        await loadChatMessages();
+        await markChatRead();
+        if(activeChatChannel){ try{ await db.removeChannel(activeChatChannel); }catch(_){} }
+        activeChatChannel=db.channel(`chat:${activeChatId}`);
+        activeChatChannel.on('postgres_changes',{event:'*',schema:'public',table:'messages'},async payload=>{
+          const rid=String(payload?.new?.conversation_id || payload?.old?.conversation_id || '');
+          if(rid!==String(activeChatId)) return;
+          await renderChatMessagesFromDb(true);
+          if(payload?.eventType==='INSERT') await markChatRead();
+        }).subscribe();
+        return true;
+      }catch(e){ console.error('openExistingChatFromNotification',e); showToast('Не удалось открыть чат.'); return false; }
+    }
+
+    async function openNotificationSource(row){
+      if(!row) return false;
+      await markNotificationRead(row.id);
+      const type=String(row.type||'');
+      const videoId=row.video_id || row.payload?.video_id || '';
+      const commentId=row.comment_id || row.payload?.comment_id || '';
+      const conversationId=row.conversation_id || row.payload?.conversation_id || '';
+      const actorId=row.actor_id || row.payload?.actor_id || '';
+      if(type==='message' && conversationId) return openExistingChatFromNotification(conversationId,actorId);
+      if(['comment','like','repost','donation','mention'].includes(type) && videoId){
+        const opened=await openVideoById(videoId,{updateHash:true,scroll:true,forceAutoplay:false});
+        if(!opened) return false;
+        if(type==='comment' || (type==='mention' && commentId)){
+          await openComments(videoId);
+          if(commentId) requestAnimationFrame(()=>{
+            const item=document.querySelector(`.comment-item[data-comment-id="${CSS.escape(String(commentId))}"]`);
+            item?.scrollIntoView({behavior:'smooth',block:'center'});
+            item?.classList.add('notification-source-highlight');
+            setTimeout(()=>item?.classList.remove('notification-source-highlight'),1800);
+          });
+        }
+        return true;
+      }
+      if(type==='follow' && actorId){ await openProfile(actorId); return true; }
+      if(actorId){ await openProfile(actorId); return true; }
+      return false;
+    }
     function timeToMinutes(value){ const m=String(value||'').match(/^(\d{2}):(\d{2})$/); return m?Number(m[1])*60+Number(m[2]):null; }
     function isDndActive(){ const from=timeToMinutes(userSettings.dnd_from),to=timeToMinutes(userSettings.dnd_to); if(from===null||to===null||from===to)return false; const now=new Date(),m=now.getHours()*60+now.getMinutes(); return from<to?m>=from&&m<to:(m>=from||m<to); }
     function applyNotificationSettings(){ const b=document.querySelector('.bottom-nav .btn[data-screen=\"inbox\"]'); if(b&&isDndActive()) b.classList.remove('has-unread'); }
@@ -562,16 +672,22 @@
       userSettings[key]=value; cacheLocalSettings(); applyAllSettings();
       try{
         if(['content_filter_level','hidden_words'].includes(key)){ await loadRemoteData({force:true}); renderFeed({reshuffle:false}); }
-        const privacyKeys=['private_account','hide_likes','who_can_comment','who_can_message','who_can_duet','allow_downloads'];
+        const privacyKeys=['private_account','hide_likes','who_can_comment','who_can_message','allow_downloads'];
         if(privacyKeys.includes(key)) await syncPrivacyProfile(key,value);
         if(authUser){
           const {error}=await db.from('user_settings').upsert({user_id:authUser.id,[key]:value,updated_at:new Date().toISOString()},{onConflict:'user_id'});
           if(error) throw error;
+          const prefColumn={push_enabled:'push_enabled',email_notifications:'email_enabled'}[key];
+          if(prefColumn){
+            const pref={user_id:authUser.id,[prefColumn]:Boolean(value),updated_at:new Date().toISOString()};
+            const {error:prefError}=await db.from('notification_preferences').upsert(pref,{onConflict:'user_id'});
+            if(prefError) throw prefError;
+          }
         }
         if(authUser && privacyKeys.includes(key)){
           const fresh=await fetchProfileById(authUser.id);
           if(fresh){
-            const u=userFromProfile(fresh);
+            const u=applyUserSettingsToUser(userFromProfile(fresh));
             profileCache.set(u.id,u); currentUser=u;
             videos.forEach(v=>{ if(String(v.authorId||v.author?.id)===String(u.id)) v.author=u; });
             if(currentProfile && String(currentProfile.id)===String(u.id)) currentProfile=u;
@@ -581,13 +697,8 @@
         const note=document.getElementById('settingsSaveNote'); if(note){note.textContent='Сохранено';clearTimeout(note._t);note._t=setTimeout(()=>note.textContent='',1400);}
       }catch(e){
         console.error('setting save',e);
-        // If the DB table is absent, keep the setting locally rather than pretending
-        // that a successful click should revert immediately. The SQL migration in
-        // settings_migration.sql enables persistent cross-device storage.
-        if(['private_account','hide_likes','who_can_comment','who_can_message','who_can_duet','allow_downloads'].includes(key)){
-          try{ await syncPrivacyProfile(key,userSettings[key]); showToast('Настройка применена. Для синхронизации на других устройствах выполните settings_migration.sql.'); return; }catch(_){ }
-        }
-        showToast('Настройка применена только на этом устройстве.');
+        userSettings[ key ] = previous; cacheLocalSettings(); applyAllSettings();
+        showToast('Не удалось сохранить настройку на сервере. Попробуйте ещё раз.');
       }
     }
 
@@ -604,8 +715,8 @@
             syncPrivacyProfile('hide_likes',false),
             syncPrivacyProfile('who_can_comment','all'),
             syncPrivacyProfile('who_can_message','all'),
-            syncPrivacyProfile('who_can_duet','all'),
-            syncPrivacyProfile('allow_downloads',true)
+            syncPrivacyProfile('allow_downloads',true),
+            db.from('notification_preferences').upsert({user_id:authUser.id,push_enabled:false,email_enabled:true,updated_at:new Date().toISOString()},{onConflict:'user_id'})
           ]);
         }catch(e){ console.warn('settings reset',e); showToast('Сброс выполнен локально.'); }
       }
@@ -615,11 +726,11 @@
 
     async function syncPrivacyProfile(key,value){
       if(!authUser?.id) return;
-      const cols={
-        private_account:'is_private',hide_likes:'hide_likes',who_can_comment:'who_can_comment',
-        who_can_message:'who_can_message',who_can_duet:'who_can_duet',allow_downloads:'allow_downloads'
-      };
-      const col=cols[key]; if(!col) return;
+      // Only fields that actually exist on public.profiles belong here.
+      // who_can_comment, who_can_message and allow_downloads are stored in user_settings.
+      const cols={private_account:'is_private',hide_likes:'hide_likes'};
+      const col=cols[key];
+      if(!col) return;
       const {error}=await db.from('profiles').update({[col]:value}).eq('id',authUser.id);
       if(error) throw error;
     }
@@ -654,16 +765,16 @@
       const sidebar=document.getElementById('settingsSidebar'), content=document.getElementById('settingsContent'); if(!sidebar||!content)return;
       sidebar.innerHTML=SETTINGS_TABS.map(([id,label,ic])=>`<button class="settings-tab ${id===currentSettingsTab?'active':''}" type="button" data-settings-tab="${id}">${icon(ic,17)}<span>${label}</span></button>`).join('');
       hydrateIcons(sidebar);
-      const titles={account:['Аккаунт','Управление профилем и входом.'],privacy:['Конфиденциальность','Кто видит контент и может взаимодействовать с вами.'],notifications:['Уведомления','Управляйте push и email-уведомлениями.'],playback:['Видео и лента','Настройки воспроизведения и экономии трафика.'],appearance:['Внешний вид','Тема и язык интерфейса.'],accessibility:['Доступность','Комфорт просмотра и напоминания.'],content:['Контент','Фильтры и скрытые слова.'],data:['Данные и трафик','Качество видео и использование сети.'],donations:['Донаты','DonationAlerts и золотой комментарий для поддержки авторов.'],security:['Безопасность','Параметры аккаунта и восстановление доступа.'],safety:['Правила и помощь','Правила сообщества, конфиденциальность и поддержка.']};
+      const titles={account:['Аккаунт','Управление профилем и входом.'],privacy:['Конфиденциальность','Кто видит контент и может взаимодействовать с вами.'],notifications:['Уведомления','Управляйте push и email-уведомлениями.'],playback:['Видео и лента','Настройки воспроизведения и экономии трафика.'],appearance:['Внешний вид','Тема и язык интерфейса.'],accessibility:['Доступность','Комфорт просмотра и напоминания.'],content:['Контент','Фильтры и скрытые слова.'],data:['Данные и трафик','Экономия трафика и управление загрузкой медиаконтента.'],donations:['Донаты','DonationAlerts и золотой комментарий для поддержки авторов.'],security:['Безопасность','Параметры аккаунта и восстановление доступа.'],safety:['Правила и помощь','Правила сообщества, конфиденциальность и поддержка.']};
       let body='';
       if(currentSettingsTab==='account') body=`<div class="settings-card"><div class="settings-card-title">Профиль</div><div class="setting-row"><div class="setting-icon">${icon('user',18)}</div><div class="setting-main"><div class="setting-label">Имя и профиль</div><div class="setting-help">Измените имя, аватар и описание.</div></div><div class="setting-control"><button class="u-btn" id="settingsProfileBtn">Открыть</button></div></div></div><div class="settings-card"><div class="settings-card-title">Сессия</div><div class="setting-row"><div class="setting-icon">${icon('mail',18)}</div><div class="setting-main"><div class="setting-label">Email</div><div class="setting-help">${escapeHtml(authUser?.email||'Не выполнен вход')}</div></div><div class="setting-control"><button class="u-btn" id="settingsLogout">Выйти</button></div></div></div><div class="settings-card"><div class="settings-card-title">Сброс</div><div class="setting-row"><div class="setting-icon">${icon('refresh',18)}</div><div class="setting-main"><div class="setting-label">Сбросить все настройки</div><div class="setting-help">Вернуть стандартные значения.</div></div><div class="setting-control"><button class="u-btn" id="settingsReset">Сбросить</button></div></div></div>`;
-      if(currentSettingsTab==='privacy') body=`<div class="settings-card"><div class="settings-card-title">Видимость</div>${settingRow('eye','Приватный аккаунт','Подписчики будут одобряться вручную.','private_account')}${settingRow('heart','Скрывать лайки','Скрывать количество лайков у ваших публикаций.','hide_likes')}${settingRow('download','Разрешать скачивание','Разрешить сохранение ваших видео на устройство.','allow_downloads')}</div><div class="settings-card"><div class="settings-card-title">Кто может</div>${settingRow('message','Комментировать','Выберите, кто может оставлять комментарии.','who_can_comment','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}${settingRow('message','Писать сообщения','Выберите, кто может отправлять вам сообщения.','who_can_message','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}${settingRow('users','Дуэты','Кто может создавать дуэты с вашими видео.','who_can_duet','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}</div>`;
-      if(currentSettingsTab==='notifications') body=`<div class="settings-card"><div class="settings-card-title">Push</div>${settingRow('message','Push-уведомления','Показывать уведомления браузера, когда разрешение выдано.','push_enabled')}${settingRow('heart','Лайки','Когда кто-то лайкает ваши видео.','notify_likes')}${settingRow('message','Комментарии','Новые комментарии под вашими видео.','notify_comments')}${settingRow('userPlus','Новые подписчики','Когда на вас подписываются.','notify_follows')}${settingRow('message','Упоминания','Когда вас упоминают.','notify_mentions')}${settingRow('share','Репосты','Когда ваше видео репостят.','notify_reposts')}${settingRow('message','Сообщения','Новые личные сообщения.','notify_messages')}${settingRow('donate','Донаты','Новые донаты от ваших зрителей.','notify_donations')}${settingRow('mail','Email-уведомления','Важные письма на электронную почту.','email_notifications')}</div><div class="settings-card"><div class="settings-card-title">Не беспокоить</div><div class="settings-save-note" style="text-align:left;padding:8px 16px 12px">В указанное время новые push-уведомления не показываются.</div>${settingRow('settings','Начало','Время начала тишины.','dnd_from','time')}${settingRow('settings','Окончание','Время окончания тишины.','dnd_to','time')}</div>`;
-      if(currentSettingsTab==='playback') body=`<div class="settings-card"><div class="settings-card-title">Воспроизведение</div>${settingRow('play','Автовоспроизведение','Запускать видео автоматически при появлении в ленте.','autoplay')}${settingRow('settings','Качество по умолчанию','Предпочтительное качество, если для видео доступна соответствующая версия.','video_quality','select',[['auto','Авто'],['360','360p'],['480','480p'],['720','720p'],['1080','1080p']])}${settingRow('refresh','Экономия трафика','Предзагрузка только метаданных видео.','data_saver')}</div>`;
+      if(currentSettingsTab==='privacy') body=`<div class="settings-card"><div class="settings-card-title">Видимость</div>${settingRow('eye','Приватный аккаунт','Подписчики будут одобряться вручную.','private_account')}${settingRow('heart','Скрывать лайки','Скрывать количество лайков у ваших публикаций.','hide_likes')}${settingRow('download','Разрешать скачивание','Разрешить сохранение ваших видео на устройство.','allow_downloads')}</div><div class="settings-card"><div class="settings-card-title">Кто может</div>${settingRow('message','Комментировать','Выберите, кто может оставлять комментарии.','who_can_comment','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}${settingRow('message','Писать сообщения','Выберите, кто может отправлять вам сообщения.','who_can_message','select',[['all','Все'],['followers','Подписчики'],['none','Никто']])}</div>`;
+      if(currentSettingsTab==='notifications') body=`<div class="settings-card"><div class="settings-card-title">Каналы и события</div>${settingRow('message','Push-уведомления','Показывать уведомления браузера, когда разрешение выдано.','push_enabled')}${settingRow('heart','Лайки','Когда кто-то лайкает ваши видео.','notify_likes')}${settingRow('message','Комментарии','Новые комментарии под вашими видео.','notify_comments')}${settingRow('userPlus','Новые подписчики','Когда на вас подписываются.','notify_follows')}${settingRow('message','Упоминания','Когда вас упоминают.','notify_mentions')}${settingRow('share','Репосты','Когда ваше видео репостят.','notify_reposts')}${settingRow('message','Сообщения','Новые личные сообщения.','notify_messages')}${settingRow('donate','Донаты','Новые донаты от ваших зрителей.','notify_donations')}${settingRow('mail','Email-уведомления','Важные письма на электронную почту.','email_notifications')}</div><div class="settings-card"><div class="settings-card-title">Не беспокоить</div><div class="settings-save-note" style="text-align:left;padding:8px 16px 12px">В указанное время новые push-уведомления не показываются.</div>${settingRow('settings','Начало','Время начала тишины.','dnd_from','time')}${settingRow('settings','Окончание','Время окончания тишины.','dnd_to','time')}</div>`;
+      if(currentSettingsTab==='playback') body=`<div class="settings-card"><div class="settings-card-title">Воспроизведение</div>${settingRow('play','Автовоспроизведение','Запускать видео автоматически при появлении в ленте.','autoplay')}${settingRow('refresh','Экономия трафика','Предзагрузка только метаданных видео.','data_saver')}</div>`;
       if(currentSettingsTab==='appearance') body=`<div class="settings-card"><div class="settings-card-title">Интерфейс</div>${settingRow('settings','Тема','Тёмная, светлая или системная тема.','theme','select',[['dark','Тёмная'],['light','Светлая'],['system','Системная']])}${settingRow('message','Язык','Язык основных элементов интерфейса.','language','select',[['ru','Русский'],['en','English']])}</div>`;
-      if(currentSettingsTab==='accessibility') body=`<div class="settings-card"><div class="settings-card-title">Комфорт</div>${settingRow('settings','Напоминание сделать перерыв','Напоминать отдохнуть после заданного лимита.','break_reminder')}${settingRow('settings','Лимит экранного времени','0 — без ограничения, минут.','screen_time_limit','number')}</div>`;
+      if(currentSettingsTab==='accessibility') body=`<div class="settings-card"><div class="settings-card-title">Комфорт</div>${settingRow('settings','Напоминание сделать перерыв','Напоминать отдохнуть после заданного лимита.','break_reminder')}${settingRow('settings','Интервал напоминания о перерыве','0 — выключено. Через сколько минут непрерывного просмотра напомнить сделать паузу.','screen_time_limit','number')}</div>`;
       if(currentSettingsTab==='content') body=`<div class="settings-card"><div class="settings-card-title">Фильтры</div>${settingRow('flag','Фильтр контента','Уровень фильтра нежелательного контента.','content_filter_level','select',[['0','Минимальный'],['1','Средний'],['2','Строгий']])}<div class="setting-row"><div class="setting-icon">${icon('search',18)}</div><div class="setting-main"><div class="setting-label">Скрытые слова</div><div class="setting-help">Слова разделяйте запятыми.</div></div><div class="setting-control"><input type="text" id="hiddenWordsInput" value="${escapeHtml((userSettings.hidden_words||[]).join(', '))}" placeholder="слово, фраза"></div></div></div><div class="settings-card"><div class="settings-card-title">Модерация комментариев</div>${settingRow('shield','Фильтр комментариев','Быстрая проверка комментария до отправки. Нецензурная лексика блокируется сервером всегда; этот переключатель управляет дополнительной модерацией.','comment_moderation_enabled')}${settingRow('flag','Уровень защиты','Строгий режим дополнительно блокирует короткие токсичные реплики вроде «кринж» и «фу».','comment_moderation_level','select',[['1','Базовый'],['2','Строгий']])}<div class="moderation-note"><strong>Защита работает автоматически.</strong> Обходы с заменой символов и пробелами проверяются до сохранения комментария.</div></div>`;
-      if(currentSettingsTab==='data') body=`<div class="settings-card"><div class="settings-card-title">Медиа</div>${settingRow('refresh','Экономия трафика','Более лёгкая загрузка видео и превью.','data_saver')}${settingRow('settings','Качество видео','Предпочтительное качество.','video_quality','select',[['auto','Авто'],['360','360p'],['480','480p'],['720','720p'],['1080','1080p']])}</div>`;
+      if(currentSettingsTab==='data') body=`<div class="settings-card"><div class="settings-card-title">Медиа</div>${settingRow('refresh','Экономия трафика','Более лёгкая загрузка видео и превью.','data_saver')}</div>`;
       if(currentSettingsTab==='donations') body=`<div class="settings-card"><div class="settings-card-title">DonationAlerts</div><div class="setting-row"><div class="setting-icon">${icon('donate',18)}</div><div class="setting-main"><div class="setting-label">Username для страницы доната</div><div class="setting-help">Укажите username из вашей ссылки DonationAlerts вида donationalerts.com/r/username.</div></div><div class="setting-control" style="display:flex;gap:8px;align-items:center"><input type="text" id="donationUsernameInput" value="${escapeHtml(currentUser?.donationUsername||'')}" maxlength="80" placeholder="username" /><button class="u-btn" id="saveDonationUsername" type="button">Сохранить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('users',18)}</div><div class="setting-main"><div class="setting-label">Кнопка «Поддержать»</div><div class="setting-help">Показывать кнопку доната рядом с вашими видео и в профиле.</div></div><div class="setting-control"><label class="switch"><input type="checkbox" id="donationEnabledToggle" ${currentUser?.donationEnabled?'checked':''}><span class="switch-track"></span></label></div></div><div class="setting-row"><div class="setting-icon">${icon('link',18)}</div><div class="setting-main"><div class="setting-label">Подключение аккаунта</div><div class="setting-help">После подключения «Смотрю» автоматически импортирует новые донаты и превращает их в сообщения в комментариях.</div></div><div class="setting-control"><span class="donation-status ${currentUser?.donationConnected?'connected':'disconnected'}" id="donationStatus">${currentUser?.donationConnected?'Подключено':'Не подключено'}</span></div></div><div class="setting-row"><div class="setting-main"><div class="donation-settings-actions"><button class="u-btn" id="connectDonationBtn" type="button">${currentUser?.donationConnected?'Переподключить':'Подключить DonationAlerts'}</button>${currentUser?.donationConnected?'<button class="u-btn" id="disconnectDonationBtn" type="button">Отключить</button>':''}</div></div></div></div><div class="settings-card"><div class="settings-card-title">Золотой комментарий</div><div class="setting-row"><div class="setting-icon">${icon('donate',18)}</div><div class="setting-main"><div class="setting-label">Автоматическое закрепление</div><div class="setting-help">У автора один золотой комментарий — последнее сообщение от пользователя, который суммарно задонатил автору больше всех. Новый лидер автоматически заменяет прежний.</div></div><div class="setting-control"><span style="font-size:12px;color:#ffd76a;font-weight:800">RUB</span></div></div></div>`;
       if(currentSettingsTab==='safety') body=`<div class="settings-card"><div class="settings-card-title">Безопасность сообщества</div><div class="setting-row"><div class="setting-icon">${icon('shield',18)}</div><div class="setting-main"><div class="setting-label">Правила сообщества</div><div class="setting-help">Что нельзя публиковать и как работает модерация.</div></div><div class="setting-control"><button class="u-btn" id="openCommunityRulesBtn" type="button">Открыть</button></div></div><div class="setting-row"><div class="setting-icon">${icon('lock',18)}</div><div class="setting-main"><div class="setting-label">Политика конфиденциальности</div><div class="setting-help">Какие данные используются для работы функций приложения.</div></div><div class="setting-control"><button class="u-btn" id="openPrivacyPolicyBtn" type="button">Открыть</button></div></div></div><div class="settings-card"><div class="settings-card-title">Поддержка</div><div class="setting-row"><div class="setting-icon">${icon('message',18)}</div><div class="setting-main"><div class="setting-label">Страница поддержки</div><div class="setting-help">Сообщите о проблеме, нарушении или ошибке приложения.</div></div><div class="setting-control"><a class="u-btn" href="support.html">Открыть</a></div></div></div>`;
       if(currentSettingsTab==='security') body=`<div class="settings-card"><div class="settings-card-title">Безопасность</div><div class="setting-row"><div class="setting-icon">${icon('lock',18)}</div><div class="setting-main"><div class="setting-label">Пароль</div><div class="setting-help">Отправить письмо для восстановления доступа.</div></div><div class="setting-control"><button class="u-btn" id="settingsResetPassword">Сбросить</button></div></div><div class="setting-row"><div class="setting-icon">${icon('mail',18)}</div><div class="setting-main"><div class="setting-label">Подтверждение email</div><div class="setting-help">Управляется системой авторизации.</div></div><div class="setting-control"><span style="font-size:12px;color:#76e3a4;font-weight:700">Защищено</span></div></div></div>`;
@@ -714,7 +825,7 @@
           await renderChatList();
           return;
         }
-        const { data, error } = await db.from('notifications').select('id,created_at,payload,is_read,video_id,text,comment_id,actor_id,type').eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(80);
+        const { data, error } = await db.from('notifications').select('id,created_at,payload,is_read,video_id,text,comment_id,actor_id,type,conversation_id,message_id').eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(80);
         if (error) throw error;
         const actorIds = [...new Set((data || []).map(n => n.actor_id).filter(Boolean))];
         if (actorIds.length) {
@@ -732,17 +843,23 @@
             const text = n.type === 'donation' ? (n.text || 'Новый донат') : (n.text || ({like:'лайкнул ваше видео',comment:'прокомментировал ваше видео',follow:'подписался на вас'}[n.type] || 'новая активность'));
             const iconName = n.type === 'like' ? 'heartFill' : n.type === 'comment' ? 'message' : n.type === 'follow' ? 'userPlus' : 'donate';
             const label = n.type === 'donation' ? escapeHtml(text) : `<b>${escapeHtml(actor?.name || 'Пользователь')}</b> ${escapeHtml(text)}`;
-            return `<div class="activity-item"><div class="activity-icon">${icon(iconName,18)}</div><div class="activity-main"><div class="activity-text">${label}</div><div class="activity-time">${formatRelativeTime(n.created_at)}${n.is_read ? '' : ' · новое'}</div></div></div>`;
+            return `<div class="activity-item inbox-notification-source" role="button" tabindex="0" data-notification-id="${escapeHtml(n.id)}"><div class="activity-icon">${icon(iconName,18)}</div><div class="activity-main"><div class="activity-text">${label}</div><div class="activity-time">${formatRelativeTime(n.created_at)}${n.is_read ? '' : ' · новое'}</div></div><div class="notification-open-icon">${icon('chevronRight',15)}</div></div>`;
           }).join('');
         } else {
           list.innerHTML = rows.map(n => {
             const actor = n.actor_id && profileCache.get(n.actor_id);
             const text = n.text || ({like:'лайкнул ваше видео',comment:'прокомментировал ваше видео',follow:'подписался на вас',message:'написал вам'}[n.type] || 'есть новое уведомление');
             const body = n.type === 'donation' ? escapeHtml(text) : `<b>${escapeHtml(actor?.name || 'Пользователь')}</b> ${escapeHtml(text)}`;
-            const iconName = n.type === 'message' ? 'message' : n.type === 'like' ? 'heartFill' : n.type === 'comment' ? 'message' : n.type === 'follow' ? 'userPlus' : n.type === 'donation' ? 'donate' : 'refresh';
-            return `<div class="notif-item" data-notification-id="${escapeHtml(n.id)}"><div class="avatar"><img src="${escapeHtml(actor?.avatar || fallbackAvatar(n.type === 'donation' ? '₽' : 'П'))}" /></div><div class="content"><div class="text"><span style="display:inline-flex;vertical-align:middle;margin-right:5px;opacity:.85">${icon(iconName,15)}</span>${body}</div><div class="time">${formatRelativeTime(n.created_at)}${n.is_read ? '' : ' · новое'}</div></div></div>`;
+            const iconName = notificationIconName(n.type);
+            return `<div class="notif-item inbox-notification-source" role="button" tabindex="0" data-notification-id="${escapeHtml(n.id)}"><div class="avatar"><img src="${escapeHtml(actor?.avatar || fallbackAvatar(n.type === 'donation' ? '₽' : 'П'))}" /></div><div class="content"><div class="text"><span style="display:inline-flex;vertical-align:middle;margin-right:5px;opacity:.85">${icon(iconName,15)}</span>${body}</div><div class="time">${formatRelativeTime(n.created_at)}${n.is_read ? '' : ' · новое'}</div></div><div class="notification-open-icon">${icon('chevronRight',15)}</div></div>`;
           }).join('');
         }
+        const rowById=new Map((data || []).map(n=>[String(n.id),n]));
+        list.querySelectorAll('.inbox-notification-source[data-notification-id]').forEach(el=>{
+          const open=()=>{ const n=rowById.get(String(el.dataset.notificationId)); if(n) openNotificationSource(n); };
+          el.addEventListener('click',open);
+          el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } });
+        });
         const unreadIds = (data || []).filter(n => !n.is_read).map(n => n.id);
         if (unreadIds.length) {
           await db.from('notifications').update({ is_read:true, read_at:new Date().toISOString() }).eq('user_id',authUser.id).in('id',unreadIds);
@@ -753,34 +870,143 @@
       }
     }
 
+    let currentChatContextConversationId = null;
+    let currentChatContextPartnerId = null;
+    let currentChatContextName = '';
+    let chatLongPressTimer = null;
+    let suppressChatClickUntil = 0;
+
+    function openChatContext(conversationId, partnerId, currentName, x, y){
+      const menu=document.getElementById('chatContextMenu');
+      if(!menu) return;
+      currentChatContextConversationId=String(conversationId||'');
+      currentChatContextPartnerId=String(partnerId||'');
+      currentChatContextName=String(currentName||'');
+      menu.classList.add('visible');
+      const w=menu.offsetWidth||210, h=menu.offsetHeight||170;
+      menu.style.left=`${Math.max(8,Math.min(Number(x)||8,window.innerWidth-w-8))}px`;
+      menu.style.top=`${Math.max(8,Math.min(Number(y)||8,window.innerHeight-h-8))}px`;
+      hydrateIcons(menu);
+    }
+
+    function closeChatContext(){
+      const menu=document.getElementById('chatContextMenu');
+      menu?.classList.remove('visible');
+      currentChatContextConversationId=null;
+      currentChatContextPartnerId=null;
+      currentChatContextName='';
+    }
+
+    async function deleteChatFromContext(){
+      const id=String(currentChatContextConversationId||'');
+      if(!id || !authUser) return;
+      try{
+        const {error}=await db.from('conversation_members').update({hidden_at:new Date().toISOString(),unread_count:0,updated_at:new Date().toISOString()}).eq('conversation_id',id).eq('user_id',authUser.id);
+        if(error) throw error;
+        closeChatContext();
+        await renderChatList();
+        showToast('Чат удалён из вашего списка.');
+      }catch(error){
+        console.error('deleteChatFromContext',error);
+        showToast('Не удалось удалить чат.');
+      }
+    }
+
+    async function renameChatFromContext(){
+      const id=String(currentChatContextConversationId||'');
+      if(!id || !authUser) return;
+      const entered=window.prompt('Новое название чата',currentChatContextName||'');
+      if(entered===null) return;
+      const name=String(entered).trim().slice(0,60);
+      try{
+        const {error}=await db.from('conversation_members').update({custom_name:name||null,updated_at:new Date().toISOString()}).eq('conversation_id',id).eq('user_id',authUser.id);
+        if(error) throw error;
+        closeChatContext();
+        await renderChatList();
+        if(activeChatId===id){
+          const header=document.getElementById('chatHeadName');
+          const fallback=header?.dataset?.partnerName || 'Чат';
+          if(header) header.textContent=name||fallback;
+        }
+        showToast(name ? 'Название чата изменено.' : 'Название чата сброшено.');
+      }catch(error){
+        console.error('renameChatFromContext',error);
+        showToast('Не удалось переименовать чат.');
+      }
+    }
+
+    async function blockChatFromContext(){
+      const id=String(currentChatContextConversationId||'');
+      const targetId=String(currentChatContextPartnerId||'');
+      if(!id || !targetId || !authUser) return;
+      const user=await requireAuth('заблокировать пользователя');
+      if(!user) return;
+      if(String(user.id)===targetId){ showToast('Нельзя заблокировать собственный аккаунт.'); closeChatContext(); return; }
+      try{
+        const {error}=await db.from('user_blocks').upsert({blocker_id:user.id,blocked_id:targetId},{onConflict:'blocker_id,blocked_id'});
+        if(error) throw error;
+        await db.from('conversation_members').update({hidden_at:new Date().toISOString(),unread_count:0,updated_at:new Date().toISOString()}).eq('conversation_id',id).eq('user_id',user.id);
+        closeChatContext();
+        if(activeChatId===id) closeDirectChat();
+        await renderChatList();
+        showToast('Пользователь заблокирован.');
+      }catch(error){
+        console.error('blockChatFromContext',error);
+        showToast('Не удалось заблокировать пользователя.');
+      }
+    }
+
     async function renderChatList() {
       const list = document.getElementById('inboxList');
-      const { data: memberships, error: memberError } = await db.from('conversation_members').select('conversation_id,unread_count,updated_at').eq('user_id',authUser.id).order('updated_at',{ascending:false}).limit(100);
-      if (memberError) throw memberError;
-      const ids = [...new Set((memberships || []).map(x => x.conversation_id).filter(Boolean))];
-      if (!ids.length) {
-        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div><div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Кнопка «Написать» появится в профиле автора после подписки.</div></div>`;
-        return;
+      if (!list || !authUser) return;
+      list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Загрузка чатов…</div></div>`;
+      try {
+        const { data: memberships, error: memberError } = await db.from('conversation_members')
+          .select('conversation_id,user_id,unread_count,updated_at,custom_name,hidden_at')
+          .eq('user_id',authUser.id).order('updated_at',{ascending:false}).limit(100);
+        if (memberError) throw memberError;
+        const visibleMemberships=(memberships||[]).filter(m=>!m.hidden_at);
+        const ids = [...new Set(visibleMemberships.map(m => m.conversation_id).filter(Boolean))];
+        if (!ids.length) {
+          list.innerHTML = `<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div><div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Кнопка «Написать» появится в профиле автора после подписки.</div></div>`;
+          hydrateIcons(list); return;
+        }
+        const [{ data: conversations, error: convError }, { data: members, error: membersError }, { data: blockedRows }] = await Promise.all([
+          db.from('conversations').select('id,type,last_text,updated_at').in('id',ids).eq('type','private'),
+          db.from('conversation_members').select('conversation_id,user_id,custom_name,hidden_at').in('conversation_id',ids),
+          db.from('user_blocks').select('blocked_id').eq('blocker_id',authUser.id)
+        ]);
+        if (convError) throw convError;
+        if (membersError) throw membersError;
+        const blockedSet=new Set((blockedRows||[]).map(x=>String(x.blocked_id)).filter(Boolean));
+        const otherIds=[...new Set((members||[]).filter(m=>String(m.user_id)!==String(authUser.id)).map(m=>m.user_id).filter(Boolean))];
+        const {data:profiles}=otherIds.length?await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id',otherIds):{data:[]};
+        const byId=new Map((profiles||[]).map(p=>[String(p.id),p]));
+        const myMemberById=new Map(visibleMemberships.map(m=>[String(m.conversation_id),m]));
+        const rows=(conversations||[]).map(c=>{
+          const other=(members||[]).find(m=>String(m.conversation_id)===String(c.id)&&String(m.user_id)!==String(authUser.id));
+          const partner=other?byId.get(String(other.user_id)):null;
+          const mine=myMemberById.get(String(c.id));
+          return partner && !blockedSet.has(String(partner.id)) ? {c,other,partner,mine}:null;
+        }).filter(Boolean).sort((x,y)=>new Date(y.c.updated_at||0)-new Date(x.c.updated_at||0));
+        if(!rows.length){ list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div></div>`; hydrateIcons(list); return; }
+        list.innerHTML=rows.map(({c,other,partner,mine})=>{
+          const partnerName=partner.display_name||partner.name||'Пользователь';
+          const name=mine?.custom_name || partnerName;
+          const username=partner.username?`@${partner.username}`:'';
+          const avatar=partner.avatar_url||fallbackAvatar(partnerName);
+          const unread=Number(mine?.unread_count||0);
+          return `<div class="chat-list-item" data-open-chat="${escapeHtml(other.user_id)}" data-chat-conversation-id="${escapeHtml(c.id)}" data-chat-partner-id="${escapeHtml(other.user_id)}" data-chat-name="${escapeHtml(name)}"><div class="chat-list-avatar"><img src="${escapeHtml(avatar)}" alt=""><span class="chat-unread" ${unread?'':'style="display:none"'}>${unread>99?'99+':unread}</span></div><div class="chat-list-main"><div class="chat-list-top"><div class="chat-list-name">${escapeHtml(name)}</div><div class="chat-list-time">${formatRelativeTime(c.updated_at)}</div></div><div class="chat-list-preview">${escapeHtml(c.last_text || 'Начните общение')}</div>${username && mine?.custom_name ? `<div class="chat-list-custom-username">${escapeHtml(username)}</div>` : ''}</div></div>`;
+        }).join('');
+        list.querySelectorAll('[data-open-chat]').forEach(el=>el.addEventListener('click',()=>{
+          if(Date.now()<suppressChatClickUntil) return;
+          openDirectChat(el.dataset.openChat);
+        }));
+      } catch (error) {
+        console.error('renderChatList', error);
+        list.innerHTML = `<div class="empty-state"><div class="icon">${icon('alert',48)}</div><div>Не удалось загрузить чаты.</div></div>`;
+        hydrateIcons(list);
       }
-      const [{data: conversations,error:convError},{data: members,error:allMemberError}] = await Promise.all([
-        db.from('conversations').select('id,type,last_text,last_sender,last_kind,updated_at').in('id',ids).eq('type','private'),
-        db.from('conversation_members').select('conversation_id,user_id').in('conversation_id',ids)
-      ]);
-      if (convError) throw convError;
-      if (allMemberError) throw allMemberError;
-      const otherIds = [...new Set((members || []).filter(m=>String(m.user_id)!==String(authUser.id)).map(m=>m.user_id).filter(Boolean))];
-      if (otherIds.length) {
-        const {data: profiles} = await db.from('profiles').select('id,name,display_name,username,avatar_url').in('id',otherIds);
-        (profiles || []).forEach(p=>profileCache.set(p.id,userFromProfile(p)));
-      }
-      const ownUnread = new Map((memberships || []).map(m=>[m.conversation_id,Number(m.unread_count||0)]));
-      const rows=(conversations||[]).filter(c=> (members||[]).filter(m=>m.conversation_id===c.id).length===2).map(c=>{
-        const other=(members||[]).find(m=>m.conversation_id===c.id && String(m.user_id)!==String(authUser.id));
-        return {c,other:other && profileCache.get(other.user_id),unread:ownUnread.get(c.id)||0};
-      }).filter(x=>x.other);
-      if(!rows.length){ list.innerHTML=`<div class="empty-state"><div class="icon">${icon('message',48)}</div><div>Чаты пока пусты.</div></div>`; return; }
-      list.innerHTML=rows.map(({c,other,unread})=>`<div class="chat-list-item" data-open-chat="${escapeHtml(other.id)}"><div class="chat-list-avatar"><img src="${escapeHtml(other.avatar||fallbackAvatar(other.name))}" alt=""><span class="chat-unread" ${unread?'':'style="display:none"'}>${unread>99?'99+':unread}</span></div><div class="chat-list-main"><div class="chat-list-top"><div class="chat-list-name">${escapeHtml(other.name)}</div><div class="chat-list-time">${formatRelativeTime(c.updated_at)}</div></div><div class="chat-list-preview">${escapeHtml(c.last_text || 'Начните общение')}</div></div></div>`).join('');
-      list.querySelectorAll('[data-open-chat]').forEach(el=>el.addEventListener('click',()=>openDirectChat(el.dataset.openChat)));
     }
 
     let activeChatId = null;
@@ -791,7 +1017,12 @@
       const user = await requireAuth('написать автору');
       if (!user) return;
       if (!otherUserId || String(otherUserId)===String(user.id)) return;
+      closeChatContext();
       try {
+        const {data:blockedByMe}=await db.from('user_blocks').select('blocked_id').eq('blocker_id',user.id).eq('blocked_id',otherUserId).maybeSingle();
+        if(blockedByMe){ showToast('Пользователь заблокирован.'); return; }
+        const {data:blockedMe}=await db.from('user_blocks').select('blocker_id').eq('blocker_id',otherUserId).eq('blocked_id',user.id).maybeSingle();
+        if(blockedMe){ showToast('Пользователь заблокировал вас.'); return; }
         const {data: subRow,error: subError}=await db.from('subscriptions').select('follower_id').eq('follower_id',user.id).eq('following_id',otherUserId).maybeSingle();
         if(subError) throw subError;
         if(!subRow){ showToast('Сначала подпишитесь на автора.'); return; }
@@ -803,7 +1034,14 @@
         const rpc=await db.rpc('get_or_create_direct_chat',{p_other_user:otherUserId});
         if(rpc.error) throw rpc.error;
         activeChatId=rpc.data; activeChatPartnerId=otherUserId;
-        document.getElementById('chatHeadName').textContent=partner.name||'Пользователь';
+        const {data:myMember,error:myMemberError}=await db.from('conversation_members').select('custom_name,hidden_at').eq('conversation_id',activeChatId).eq('user_id',user.id).maybeSingle();
+        if(myMemberError) throw myMemberError;
+        if(myMember?.hidden_at){
+          await db.from('conversation_members').update({hidden_at:null,unread_count:0,updated_at:new Date().toISOString()}).eq('conversation_id',activeChatId).eq('user_id',user.id);
+        }
+        const chatDisplayName=myMember?.custom_name || partner.name || 'Пользователь';
+        document.getElementById('chatHeadName').textContent=chatDisplayName;
+        document.getElementById('chatHeadName').dataset.partnerName=partner.name||'Пользователь';
         document.getElementById('chatHeadStatus').textContent=`@${partner.username||'user'}`;
         document.getElementById('chatHeadAvatar').src=partner.avatar||fallbackAvatar(partner.name||'П');
         document.getElementById('chatBody').innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Загрузка сообщений…</div></div>`;
@@ -813,16 +1051,18 @@
         await markChatRead();
         if(activeChatChannel){ try{ await db.removeChannel(activeChatChannel); }catch(_){} }
         activeChatChannel=db.channel(`chat:${activeChatId}`);
-        activeChatChannel.on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`conversation_id=eq.${activeChatId}`},async payload=>{
-          if(!payload?.new) return;
+        activeChatChannel.on('postgres_changes',{event:'*',schema:'public',table:'messages'},async payload=>{
+          const rid=String(payload?.new?.conversation_id || payload?.old?.conversation_id || '');
+          if(rid!==String(activeChatId)) return;
           await renderChatMessagesFromDb(true);
-          await markChatRead();
+          if(payload?.eventType==='INSERT') await markChatRead();
         }).subscribe();
       } catch(error){
         console.error('openDirectChat',error);
         const msg=String(error?.message||'');
         if(msg.includes('FOLLOW_REQUIRED')) showToast('Чтобы написать автору, подпишитесь на него.');
         else if(msg.includes('MESSAGES_DISABLED')) showToast('Автор запретил личные сообщения.');
+        else if(msg.includes('USER_BLOCKED')) showToast('Чат заблокирован.');
         else showToast('Не удалось открыть чат.');
       }
     }
@@ -838,11 +1078,70 @@
       const thumb=video.thumbnail?`<img src="${escapeHtml(video.thumbnail)}" alt="">`:`<span class="chat-video-share-play">${icon('play',22)}</span>`;
       return `<button type="button" class="chat-video-share" data-chat-video-id="${escapeHtml(video.id)}"><span class="chat-video-share-thumb">${thumb}</span><span class="chat-video-share-info"><span class="chat-video-share-title">${escapeHtml(video.title||'Видео из «Смотрю»')}</span><span class="chat-video-share-desc">Нажмите, чтобы открыть видео</span></span><span class="chat-video-share-icon">${icon('play',16)}</span></button>`;
     }
+    let currentMessageContextId = null;
+
+    function openMessageContext(messageId,x,y){
+      const menu=document.getElementById('messageContextMenu');
+      const item=document.querySelector(`.chat-message[data-message-id="${CSS.escape(String(messageId))}"]`);
+      if(!menu || !item || !item.classList.contains('mine')) return;
+      currentMessageContextId=String(messageId);
+      menu.classList.add('visible');
+      const w=menu.offsetWidth||210,h=menu.offsetHeight||120;
+      menu.style.left=`${Math.max(8,Math.min(Number(x)||8,window.innerWidth-w-8))}px`;
+      menu.style.top=`${Math.max(8,Math.min(Number(y)||8,window.innerHeight-h-8))}px`;
+      hydrateIcons(menu);
+    }
+    function closeMessageContext(){
+      document.getElementById('messageContextMenu')?.classList.remove('visible');
+      currentMessageContextId=null;
+    }
+
+    async function editCurrentMessage(){
+      const id=String(currentMessageContextId||''); if(!id || !authUser) return;
+      const item=document.querySelector(`.chat-message[data-message-id="${CSS.escape(id)}"]`);
+      const current=item?.dataset.messageBody || '';
+      const entered=window.prompt('Изменить сообщение',current);
+      if(entered===null) return;
+      const value=String(entered).trim();
+      if(!value){ showToast('Сообщение не может быть пустым.'); return; }
+      try{
+        const {error}=await db.rpc('edit_direct_message',{p_message_id:id,p_body:value});
+        if(error) throw error;
+        closeMessageContext();
+        await renderChatMessagesFromDb(false);
+        showToast('Сообщение изменено.');
+      }catch(error){
+        console.error('editCurrentMessage',error);
+        const msg=String(error?.message||'');
+        if(msg.includes('MESSAGE_TOO_LONG')) showToast('Сообщение должно быть не длиннее 2000 символов.');
+        else showToast('Не удалось изменить сообщение.');
+      }
+    }
+
+    async function deleteCurrentMessage(){
+      const id=String(currentMessageContextId||''); if(!id || !authUser) return;
+      if(!window.confirm('Удалить это сообщение?')) return;
+      try{
+        const {error}=await db.rpc('delete_direct_message',{p_message_id:id});
+        if(error) throw error;
+        closeMessageContext();
+        await renderChatMessagesFromDb(false);
+        showToast('Сообщение удалено.');
+      }catch(error){
+        console.error('deleteCurrentMessage',error);
+        showToast('Не удалось удалить сообщение.');
+      }
+    }
+
     async function renderChatMessagesFromDb(smartScroll=false){
       if(!activeChatId)return;
-      const {data,error}=await db.from('messages').select('id,sender_id,body,created_at,read_at').eq('conversation_id',activeChatId).order('created_at',{ascending:true}).limit(200); if(error)throw error;
+      const {data,error}=await db.from('messages').select('id,sender_id,body,created_at,read_at,edited_at').eq('conversation_id',activeChatId).order('created_at',{ascending:true}).limit(200); if(error)throw error;
       const body=document.getElementById('chatBody'); if(!data?.length){body.innerHTML=`<div class="chat-empty"><div class="icon">${icon('message',38)}</div><div>Начните диалог первым сообщением.</div></div>`;return;}
-      body.innerHTML=data.map(m=>`<div class="chat-message ${String(m.sender_id)===String(authUser.id)?'mine':''}"><div class="chat-message-body">${renderChatMessageBody(m.body)}</div><div class="chat-message-meta"><span>${new Date(m.created_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>${String(m.sender_id)===String(authUser.id)&&m.read_at?'✓':''}</div></div>`).join('');
+      body.innerHTML=data.map(m=>{
+        const mine=String(m.sender_id)===String(authUser.id);
+        const edited=m.edited_at?'<span>изменено</span>':'';
+        return `<div class="chat-message ${mine?'mine':''}" data-message-id="${escapeHtml(m.id)}" data-message-body="${escapeHtml(m.body)}"><div class="chat-message-body">${renderChatMessageBody(m.body)}</div><div class="chat-message-meta"><span>${new Date(m.created_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}</span>${edited}${mine&&m.read_at?'✓':''}</div></div>`;
+      }).join('');
       body.querySelectorAll('[data-chat-video-id]').forEach(card=>card.addEventListener('click',async()=>{const id=card.dataset.chatVideoId;closeDirectChat();await openVideoById(id,{updateHash:true,scroll:true});}));
       hydrateIcons(body); if(smartScroll||body.scrollHeight-body.scrollTop-body.clientHeight<180)body.scrollTop=body.scrollHeight;
     }
@@ -874,6 +1173,8 @@
     }
 
     function closeDirectChat(){
+      closeMessageContext?.();
+      closeChatContext?.();
       document.getElementById('chatModal')?.classList.remove('visible');
       if(activeChatChannel){ try{ db.removeChannel(activeChatChannel); }catch(_){} activeChatChannel=null; }
       activeChatId=null; activeChatPartnerId=null;

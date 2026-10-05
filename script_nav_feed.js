@@ -476,7 +476,7 @@
           ? `<div class="video-blocked-state" role="status"><div class="video-blocked-title">Видео заблокировано</div><div class="video-blocked-text">Извините, это видео заблокировано из-за нарушений правил платформы.</div>${v.moderationReason ? `<div class="video-blocked-reason">${escapeHtml(v.moderationReason)}</div>` : ''}</div>`
           : (v.mediaType === 'image'
             ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" loading="lazy" decoding="async" style="width:100%;height:auto;max-height:100%;object-fit:contain;background:#000;display:block;margin:0 auto;" />`
-            : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop muted playsinline preload="metadata" fetchpriority="high" style="width:100%;height:auto;max-height:100%;object-fit:contain;display:block;margin:0 auto" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`);
+            : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop muted playsinline preload="metadata" fetchpriority="high" style="width:100%;height:auto;max-height:100%;object-fit:contain;display:block;margin:0 auto"${poster}></video>`);
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
         const canComment = !isModerationBlocked && v.author?.whoCanComment !== 'none' && (v.author?.whoCanComment !== 'followers' || v.isMine || followingIds.has(v.authorId));
         const likeCountText = v.author?.hideLikes && !v.isMine ? '—' : formatCount(v.likes);

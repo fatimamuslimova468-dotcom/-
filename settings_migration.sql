@@ -5,10 +5,6 @@
 -- корректно скрывать контент/действия для других пользователей.
 alter table public.profiles add column if not exists is_private boolean not null default false;
 alter table public.profiles add column if not exists hide_likes boolean not null default false;
-alter table public.profiles add column if not exists who_can_comment text not null default 'all';
-alter table public.profiles add column if not exists who_can_message text not null default 'all';
-alter table public.profiles add column if not exists who_can_duet text not null default 'all';
-alter table public.profiles add column if not exists allow_downloads boolean not null default true;
 
 -- Единая таблица персональных настроек.
 create table if not exists public.user_settings (
@@ -21,7 +17,6 @@ create table if not exists public.user_settings (
   private_account boolean not null default false,
   who_can_comment text not null default 'all',
   who_can_message text not null default 'all',
-  who_can_duet text not null default 'all',
   hide_likes boolean not null default false,
   allow_downloads boolean not null default true,
   push_enabled boolean not null default false,
@@ -52,7 +47,6 @@ alter table public.user_settings add column if not exists video_quality text not
 alter table public.user_settings add column if not exists private_account boolean not null default false;
 alter table public.user_settings add column if not exists who_can_comment text not null default 'all';
 alter table public.user_settings add column if not exists who_can_message text not null default 'all';
-alter table public.user_settings add column if not exists who_can_duet text not null default 'all';
 alter table public.user_settings add column if not exists hide_likes boolean not null default false;
 alter table public.user_settings add column if not exists allow_downloads boolean not null default true;
 alter table public.user_settings add column if not exists push_enabled boolean not null default false;
@@ -85,22 +79,12 @@ drop policy if exists user_settings_delete_own on public.user_settings;
 create policy user_settings_delete_own on public.user_settings for delete to authenticated using (user_id = auth.uid());
 
 -- Синхронизируем старые значения профиля в настройки при первом запуске.
-insert into public.user_settings (user_id, private_account, hide_likes, who_can_comment, who_can_message, who_can_duet, allow_downloads)
-select p.id,
-       coalesce(p.is_private,false),
-       coalesce(p.hide_likes,false),
-       coalesce(p.who_can_comment,'all'),
-       coalesce(p.who_can_message,'all'),
-       coalesce(p.who_can_duet,'all'),
-       coalesce(p.allow_downloads,true)
+insert into public.user_settings (user_id, private_account, hide_likes)
+select p.id, coalesce(p.is_private,false), coalesce(p.hide_likes,false)
 from public.profiles p
 on conflict (user_id) do update set
   private_account = excluded.private_account,
   hide_likes = excluded.hide_likes,
-  who_can_comment = excluded.who_can_comment,
-  who_can_message = excluded.who_can_message,
-  who_can_duet = excluded.who_can_duet,
-  allow_downloads = excluded.allow_downloads,
   updated_at = now();
 
 -- Заявки на подписку для приватных аккаунтов.
@@ -167,3 +151,131 @@ $$;
 
 revoke all on function public.accept_follow_request(uuid) from public;
 grant execute on function public.accept_follow_request(uuid) to authenticated;
+
+
+-- ============================================================
+-- Кликабельные уведомления и единое уведомление о комментариях
+-- ============================================================
+alter table public.notifications
+  add column if not exists video_id uuid references public.videos(id) on delete set null,
+  add column if not exists comment_id uuid references public.comments(id) on delete set null,
+  add column if not exists conversation_id uuid references public.conversations(id) on delete set null,
+  add column if not exists message_id uuid references public.messages(id) on delete set null;
+
+create index if not exists notifications_user_created_idx on public.notifications(user_id, created_at desc);
+create index if not exists notifications_source_video_idx on public.notifications(video_id, comment_id);
+
+create or replace function public.create_notification(p_user_id uuid, p_type text, p_actor_id uuid, p_payload jsonb)
+returns void
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $$
+declare
+  body text := coalesce(p_payload->>'text', p_type);
+  v_video_id uuid := nullif(p_payload->>'video_id','')::uuid;
+  v_comment_id uuid := nullif(p_payload->>'comment_id','')::uuid;
+  v_conversation_id uuid := nullif(p_payload->>'conversation_id','')::uuid;
+  v_message_id uuid := nullif(p_payload->>'message_id','')::uuid;
+begin
+  if p_user_id is null or p_actor_id = p_user_id then return; end if;
+  insert into public.notifications(user_id, actor_id, type, text, video_id, comment_id, conversation_id, message_id, payload, is_read)
+  values(p_user_id, p_actor_id, p_type, body, v_video_id, v_comment_id, v_conversation_id, v_message_id, coalesce(p_payload, '{}'::jsonb), false);
+end;
+$$;
+revoke all on function public.create_notification(uuid,text,uuid,jsonb) from public;
+
+-- Один триггер на комментарий: без дублей и сразу с video_id/comment_id для навигации.
+drop trigger if exists comments_notification on public.comments;
+drop trigger if exists comment_notification on public.comments;
+
+create or replace function public.notify_comment()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $$
+declare
+  creator uuid;
+  actor_name text;
+  comment_preview text;
+  parent_author uuid;
+begin
+  select user_id into creator from public.videos where id = new.video_id;
+  select coalesce(display_name,name,'Пользователь') into actor_name from public.profiles where id = new.user_id;
+  comment_preview := left(regexp_replace(coalesce(new.text,new.content,''), '\s+', ' ', 'g'), 90);
+  if creator is not null and creator <> new.user_id then
+    perform public.create_notification(creator,'comment',new.user_id,jsonb_build_object(
+      'video_id',new.video_id,'comment_id',new.id,
+      'text',actor_name || ' прокомментировал(а) твоё видео' || case when comment_preview<>'' then ': '||comment_preview else '' end));
+  end if;
+  if new.parent_id is not null then
+    select user_id into parent_author from public.comments where id=new.parent_id;
+    if parent_author is not null and parent_author <> new.user_id and parent_author <> creator then
+      perform public.create_notification(parent_author,'comment',new.user_id,jsonb_build_object(
+        'video_id',new.video_id,'comment_id',new.id,
+        'text',actor_name || ' ответил(а) на твой комментарий' || case when comment_preview<>'' then ': '||comment_preview else '' end));
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger comment_notification after insert on public.comments for each row execute function public.notify_comment();
+
+
+-- Связать системные email/push-предпочтения с настройками «Смотрю».
+alter table public.notification_preferences enable row level security;
+drop policy if exists pref_insert_own on public.notification_preferences;
+create policy pref_insert_own on public.notification_preferences
+for insert to authenticated with check ((select auth.uid()) = user_id);
+
+-- Старые уведомления получают источник из payload, но только если объект ещё существует.
+update public.notifications n
+set video_id = (select v.id from public.videos v where v.id = nullif(n.payload->>'video_id','')::uuid)
+where n.video_id is null
+  and n.payload ? 'video_id'
+  and (n.payload->>'video_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+update public.notifications n
+set comment_id = (select c.id from public.comments c where c.id = nullif(n.payload->>'comment_id','')::uuid)
+where n.comment_id is null
+  and n.payload ? 'comment_id'
+  and (n.payload->>'comment_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+update public.notifications n
+set conversation_id = (select cv.id from public.conversations cv where cv.id = nullif(n.payload->>'conversation_id','')::uuid)
+where n.conversation_id is null
+  and n.payload ? 'conversation_id'
+  and (n.payload->>'conversation_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+update public.notifications n
+set message_id = (select m.id from public.messages m where m.id = nullif(n.payload->>'message_id','')::uuid)
+where n.message_id is null
+  and n.payload ? 'message_id'
+  and (n.payload->>'message_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+
+-- Safe public interaction settings endpoint used by the client for other profiles.
+create or replace function public.get_public_profile_settings(p_user_ids uuid[])
+returns table(
+  user_id uuid,
+  who_can_comment text,
+  who_can_message text,
+  who_can_duet text,
+  allow_downloads boolean
+)
+language sql
+security definer
+set search_path to 'public', 'pg_temp'
+as $$
+  select
+    us.user_id,
+    coalesce(us.who_can_comment,'all'),
+    coalesce(us.who_can_message,'all'),
+    coalesce(us.who_can_duet,'all'),
+    coalesce(us.allow_downloads,true)
+  from public.user_settings us
+  where us.user_id = any(coalesce(p_user_ids, '{}'::uuid[]))
+$$;
+revoke all on function public.get_public_profile_settings(uuid[]) from public;
+grant execute on function public.get_public_profile_settings(uuid[]) to anon, authenticated;

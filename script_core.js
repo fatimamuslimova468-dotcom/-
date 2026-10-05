@@ -269,6 +269,7 @@
       sticker: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H13l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 12.5Z"/><circle cx="9" cy="9" r=".8" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r=".8" fill="currentColor" stroke="none"/><path d="M8 11.5c1.1 1.1 2.9 1.1 4 0"/>',
       check: '<path d="m5 12 4 4L19 6"/>',
       userPlus: '<path d="M15 21v-1.5A4.5 4.5 0 0 0 10.5 15h-1A4.5 4.5 0 0 0 5 19.5V21"/><circle cx="10" cy="7" r="3"/><path d="M19 8v6M16 11h6"/>',
+      chevronRight: '<path d="m9 6 6 6-6 6"/>',
       alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
       user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/>',
       lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
@@ -417,8 +418,34 @@
       // when even one requested column is missing from an older schema. `select('*')`
       // keeps profile loading compatible across deployed schemas while userFromProfile()
       // safely handles absent optional fields.
+      const mergePublicInteractionSettings = async (rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) return list;
+        try {
+          const { data: policies, error: policyError } = await db.rpc('get_public_profile_settings', { p_user_ids: list.map(r => r.id).filter(Boolean) });
+          if (policyError) {
+            console.warn('Public profile settings load:', policyError?.message || policyError);
+            return list;
+          }
+          const byId = new Map((policies || []).map(row => [String(row.user_id), row]));
+          return list.map(row => {
+            const policy = byId.get(String(row.id));
+            return policy ? {
+              ...row,
+              who_can_comment: policy.who_can_comment || 'all',
+              who_can_message: policy.who_can_message || 'all',
+              who_can_duet: policy.who_can_duet || 'all',
+              allow_downloads: policy.allow_downloads !== false
+            } : row;
+          });
+        } catch (e) {
+          console.warn('Public profile settings load:', e);
+          return list;
+        }
+      };
+
       const { data, error } = await db.from('profiles').select('*').in('id', cleanIds);
-      if (!error) return data || [];
+      if (!error) return await mergePublicInteractionSettings(data || []);
 
       console.warn('Profile load:', {
         code: error?.code || '',
@@ -432,7 +459,7 @@
           .from('profiles')
           .select('id,username,display_name,avatar_url')
           .in('id', cleanIds);
-        if (!minimalError) return minimal || [];
+        if (!minimalError) return await mergePublicInteractionSettings(minimal || []);
       } catch (_) {}
 
       throw error;
@@ -471,6 +498,22 @@
         isBanned: Boolean(profile.is_banned),
         banReason: profile.ban_reason || '',
         warningCount: Number(profile.warning_count || 0)
+      };
+    }
+
+    // Settings backed by public.user_settings are merged only for the logged-in
+    // user when needed, or from the safe public RPC for other profiles. This keeps
+    // the browser from ever PATCHing non-existent columns on public.profiles.
+    function applyUserSettingsToUser(user) {
+      if (!user || typeof userSettings === 'undefined' || !userSettings) return user;
+      return {
+        ...user,
+        isPrivate: Boolean(userSettings.private_account),
+        hideLikes: Boolean(userSettings.hide_likes),
+        whoCanComment: userSettings.who_can_comment || 'all',
+        whoCanMessage: userSettings.who_can_message || 'all',
+        whoCanDuet: userSettings.who_can_duet || 'all',
+        allowDownloads: userSettings.allow_downloads !== false
       };
     }
 

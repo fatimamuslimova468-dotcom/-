@@ -429,6 +429,7 @@
     .profile-edit-avatar-row { display:flex; justify-content:center; margin:2px 0 18px; }
     .profile-edit-avatar-btn { position:relative; width:112px; height:112px; padding:0; border:3px solid rgba(255,255,255,.92); border-radius:50%; overflow:hidden; background:#242424; cursor:pointer; box-shadow:0 0 0 5px rgba(254,44,85,.10), 0 16px 38px rgba(0,0,0,.40); }
     .profile-edit-avatar-btn:disabled { cursor:not-allowed; opacity:.7; }
+    .profile-edit-field input:disabled, .profile-edit-field textarea:disabled { color:#777; background:#111; cursor:not-allowed; }
     .profile-edit-avatar-btn img { width:100%; height:100%; object-fit:cover; display:block; }
     .profile-edit-avatar-overlay { position:absolute; inset:auto 0 0; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 6px; background:linear-gradient(180deg, transparent, rgba(0,0,0,.86)); font-size:11px; font-weight:750; }
     .profile-edit-field { margin-bottom:13px; }
