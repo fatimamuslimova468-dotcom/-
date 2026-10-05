@@ -159,6 +159,54 @@
       visibility: hidden;
     }
 
+
+    .video-blocked-state {
+      position:absolute;
+      inset:0;
+      z-index:12;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      padding:28px;
+      text-align:center;
+      background:
+        radial-gradient(circle at 50% 38%, rgba(254,44,85,.16), transparent 40%),
+        linear-gradient(180deg, #111116 0%, #070709 100%);
+      color:#fff;
+    }
+    .video-blocked-title {
+      font-size:20px;
+      font-weight:850;
+      letter-spacing:-.02em;
+    }
+    .video-blocked-text {
+      max-width:360px;
+      color:#d4d4dc;
+      font-size:14px;
+      line-height:1.5;
+    }
+    .video-blocked-reason {
+      max-width:360px;
+      padding:8px 10px;
+      border-radius:10px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08);
+      color:#a8a8b2;
+      font-size:12px;
+    }
+    .video-overlay-blocked { pointer-events:none; }
+    .account-blocked-state {
+      position:relative;
+      inset:auto;
+      min-height:280px;
+      width:min(100%,520px);
+      margin:80px auto 20px;
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,.08);
+    }
+
     .video-overlay {
       position: absolute;
       inset: 0;
@@ -1812,3 +1860,114 @@ html, body, #app {
   .country-flag-card,.country-flag-card.reduced-motion,.country-flag-emoji,.country-flag-image,.country-coat-image,.country-name-flash{animation-duration:.26s!important;animation-iteration-count:1!important}
   .country-flag-particle{display:none}
 }
+
+
+/* ===== Доступность видео: не обрезаем кадр и не выпускаем его за экран ===== */
+.feed-item,
+.video-card,
+.video-wrap,
+.video-player,
+.video-container {
+  max-width: 100%;
+}
+
+.video-feed video,
+.video-feed img,
+.feed video,
+.feed img,
+.video-card video,
+.video-card img {
+  max-width: 100%;
+}
+
+.video-feed video,
+.feed video,
+.video-card video {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(88dvh, 980px);
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Контейнер использует реальный размер кадра, когда это возможно,
+   вместо принудительного crop через height:100%. */
+.video-cover,
+.video-loading {
+  max-width: 100%;
+}
+
+.video-cover img {
+  width: 100%;
+  height: auto !important;
+  max-height: min(88dvh, 980px);
+  object-fit: contain !important;
+  object-position: center;
+}
+
+.video-overlay {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Узкие телефоны: оставляем поля вокруг широких роликов,
+   но вертикальные ролики по-прежнему занимают большую часть экрана. */
+@media (max-width: 900px) {
+  .video-feed video,
+  .feed video,
+  .video-card video {
+    max-height: 84dvh;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (max-width: 600px) {
+  .video-feed video,
+  .feed video,
+  .video-card video,
+  .video-cover img {
+    max-width: calc(100vw - 16px);
+    max-height: 78dvh;
+  }
+}
+
+/* Фоллбек для браузеров без поддержки dvh */
+@supports not (height: 1dvh) {
+  .video-feed video,
+  .feed video,
+  .video-card video,
+  .video-cover img {
+    max-height: 88vh;
+  }
+}
+
+/* ========== DESKTOP FEED ACTIONS FIX ========== */
+@media (min-width: 860px) {
+  /* Keep the feed card centered at the intended desktop width. */
+  #feed-screen .feed-container {
+    width: 100% !important;
+    max-width: 760px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* The media layer must stay below the interactive overlay. */
+  #feed-screen .video-card video,
+  #feed-screen .video-card > img {
+    z-index: 1 !important;
+  }
+
+  #feed-screen .video-card .video-overlay {
+    z-index: 20 !important;
+    overflow: visible !important;
+  }
+
+  #feed-screen .video-card .side-actions {
+    z-index: 30 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}
+

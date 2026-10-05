@@ -35,6 +35,22 @@
       } else { user.__isFollowing = false; user.__followRequested = false; }
       currentProfile = user;
       showScreen('profile');
+      const profileTabs = document.querySelector('.profile-tabs');
+      const profileGrid = document.getElementById('profileGrid');
+      if (profileTabs) profileTabs.style.display = user.isBanned ? 'none' : '';
+      if (user.isBanned) {
+        const header = document.getElementById('profileHeader');
+        header.innerHTML = `
+          <div class="profile-back" onclick="showScreen('feed')" aria-label="Назад">${icon('back',20)}</div>
+          <div class="video-blocked-state account-blocked-state" role="status">
+            <div class="video-blocked-title">Аккаунт заблокирован</div>
+            <div class="video-blocked-text">Извините, этот аккаунт заблокирован за нарушения правил платформы.</div>
+            ${user.banReason ? `<div class="video-blocked-reason">${escapeHtml(user.banReason)}</div>` : ''}
+          </div>`;
+        if (profileGrid) profileGrid.innerHTML = '';
+        hydrateIcons(header);
+        return;
+      }
       const isMe = Boolean(authUser && user.id === authUser.id);
       const isGuestProfile = !authUser && !user.id;
       const header = document.getElementById('profileHeader');
@@ -506,9 +522,11 @@
       const container = document.getElementById('feedContainer');
       if(!container) return;
       container.querySelectorAll('.video-card video').forEach(v=>{
-        v.autoplay = !!userSettings.autoplay;
-        // Do not force `auto` on every card: the feed itself loads only nearby videos.
-        v.preload = 'none';
+        v.autoplay = false;
+        // Keep a small preload buffer for the current/nearby feed cards.
+        // data_saver limits this to metadata only; otherwise actual media can start
+        // buffering before the user reaches the next video.
+        v.preload = userSettings.data_saver ? 'metadata' : 'auto';
         if(!userSettings.autoplay && !v.paused) v.pause();
       });
       if(userSettings.autoplay && currentScreenName === 'feed') playVisibleVideo();

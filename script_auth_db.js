@@ -369,7 +369,7 @@
             friendIds.clear();
             currentUser = { id:null, name:'Гость', username:'guest', avatar:fallbackAvatar('Пользователь'), followers:0, following:0, likes:0, bio:'Аккаунт заблокирован', donationUsername:'', donationEnabled:false, donationConnected:false };
             updateAuthUi();
-            showToast(`Аккаунт заблокирован.${reason}`);
+            showToast(`Извините, этот аккаунт заблокирован за нарушения правил платформы.${reason}`);
           } else {
             await loadSavedStickers();
             await loadUserSettings();
@@ -484,7 +484,7 @@
     async function _loadRemoteData(options = {}) {
       try {
         const videoResult = await db.from('videos')
-          .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username')
+          .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username,moderation_blocked,moderation_reason')
           .eq('status', 'published')
           .eq('visibility', 'public')
           .order('created_at', { ascending: false })
@@ -576,7 +576,7 @@
     async function refreshVideo(id) {
       if (!isRemoteVideo(videos.find(v => v.id === id))) return;
       const { data, error } = await db.from('videos')
-        .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username')
+        .select('id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username,moderation_blocked,moderation_reason')
         .eq('id', id).maybeSingle();
       if (error || !data) return;
       const next = normalizeVideo(data);

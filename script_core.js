@@ -516,6 +516,17 @@
         : '';
     }
 
+
+    // Админ-панель может изменить модерацию в другой вкладке.
+    try {
+      const moderationChannel = new BroadcastChannel('smotry-admin');
+      moderationChannel.onmessage = (event) => {
+        if (event?.data?.type === 'moderation-changed') {
+          loadRemoteData({ force: true }).catch(() => {});
+        }
+      };
+    } catch (_) {}
+
     function normalizeVideo(row) {
       const author = profileCache.get(row.user_id) || {
         id: row.user_id,
@@ -546,7 +557,9 @@
         music: row.sound_name || row.sound || 'Оригинальный звук',
         title: row.title || 'Без названия',
         thumbnail: safeUrl(row.thumbnail_url || (row.media_type === 'image' ? row.image_url : '')),
-        duration: Number(row.duration_seconds ?? row.duration ?? 0)
+        duration: Number(row.duration_seconds ?? row.duration ?? 0),
+        moderationBlocked: Boolean(row.moderation_blocked),
+        moderationReason: row.moderation_reason || ''
       };
     }
 

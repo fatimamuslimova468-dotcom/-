@@ -9,7 +9,7 @@
     }
 
     function showScreen(name, options = {}) {
-      const { push = true } = options;
+      const { push = true, suppressFeedAutoplay = false } = options;
       const target = document.getElementById(name + '-screen');
       if (!target) return;
 
@@ -26,7 +26,9 @@
       const bottomNav = document.getElementById('bottomNav');
       if (bottomNav) bottomNav.style.display = (name === 'create' || name === 'publish') ? 'none' : 'flex';
 
-      if (name === 'feed') playVisibleVideo(); else pauseAllVideos();
+      if (name === 'feed') {
+        if (!suppressFeedAutoplay) playVisibleVideo();
+      } else pauseAllVideos();
       if (name === 'create') startCamera(); else stopCamera();
       if (name === 'inbox') renderInbox();
       if (name === 'search') renderSearchSuggestions();
@@ -152,14 +154,31 @@
       if (!video) return null;
       const source = video.dataset.src;
       if (!source) return video;
+
+      // Поднимаем приоритет загрузки сразу при получении карточки.
+      // Раньше preload был none, а src назначался только при пересечении >60%,
+      // из-за чего при быстром свайпе видео часто начинало качаться слишком поздно.
+      const wantedPreload = preload === 'none' ? 'metadata' : preload;
+      video.preload = wantedPreload;
       if (!video.getAttribute('src')) {
         video.src = source;
-        video.preload = preload;
         video.load();
-      } else if (preload && video.preload !== preload) {
-        video.preload = preload;
       }
       return video;
+    }
+
+    function preloadNearbyFeedVideos(card) {
+      const container = document.getElementById('feedContainer');
+      if (!container || !card) return;
+      const cards = [...container.querySelectorAll('.video-card')];
+      const index = cards.indexOf(card);
+      if (index < 0) return;
+
+      const neighbors = [cards[index - 1], cards[index + 1]];
+      const preload = userSettings.data_saver ? 'metadata' : 'auto';
+      neighbors.forEach(neighbor => {
+        if (neighbor) loadFeedVideo(neighbor, preload);
+      });
     }
 
     function unloadFeedVideo(card) {
@@ -411,23 +430,27 @@
         const videoCover = v.thumbnail
           ? `<div class="video-cover"><img src="${escapeHtml(v.thumbnail)}" alt="" loading="lazy" decoding="async" /></div>`
           : `<div class="video-cover" aria-hidden="true"></div>`;
-        const media = v.mediaType === 'image'
-          ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;background:#000;" />`
-          : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop muted playsinline preload="none" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`;
+        const isModerationBlocked = Boolean(v.moderationBlocked);
+        const media = isModerationBlocked
+          ? `<div class="video-blocked-state" role="status"><div class="video-blocked-title">Видео заблокировано</div><div class="video-blocked-text">Извините, это видео заблокировано из-за нарушений правил платформы.</div>${v.moderationReason ? `<div class="video-blocked-reason">${escapeHtml(v.moderationReason)}</div>` : ''}</div>`
+          : (v.mediaType === 'image'
+            ? `<div class="video-loading"><span class="loading-spinner"></span></div><img src="${source}" alt="" loading="lazy" decoding="async" style="width:100%;height:auto;max-height:100%;object-fit:contain;background:#000;display:block;margin:0 auto;" />`
+            : `<div class="video-loading"><span class="loading-spinner"></span></div>${videoCover}<video data-src="${source}" loop muted playsinline preload="metadata" fetchpriority="high" style="width:100%;height:auto;max-height:100%;object-fit:contain;display:block;margin:0 auto" data-quality-preference="${escapeHtml(userSettings.video_quality || 'auto')}"${poster}></video>`);
         const likeIcon = v.liked ? icon('heartFill', 25) : icon('heart', 25);
-        const canComment = v.author?.whoCanComment !== 'none' && (v.author?.whoCanComment !== 'followers' || v.isMine || followingIds.has(v.authorId));
+        const canComment = !isModerationBlocked && v.author?.whoCanComment !== 'none' && (v.author?.whoCanComment !== 'followers' || v.isMine || followingIds.has(v.authorId));
         const likeCountText = v.author?.hideLikes && !v.isMine ? '—' : formatCount(v.likes);
         const commentActionMarkup = canComment ? `<div class="side-action comment-btn" data-id="${escapeHtml(v.id)}"><div class="icon-btn">${icon('message',24)}</div><div class="count">${formatCount(v.comments)}</div></div>` : '';
         const saveBadge = v.favorited ? ' saved' : '';
         card.innerHTML = `
           ${media}
           <div class="video-pause-indicator" aria-hidden="true"><div class="pause-badge">${icon('pause',26)}</div></div>
-          <div class="video-overlay">
+          <div class="video-overlay ${isModerationBlocked ? 'video-overlay-blocked' : ''}">
+            ${isModerationBlocked ? '' : `
             <button class="subscribe-btn ${v.subscribed ? 'subscribed' : ''}" data-id="${escapeHtml(v.id)}" ${v.isMine ? 'disabled' : ''}>
               ${v.subscribed ? `${icon('check',14)} Подписан` : v.followRequested ? `${icon('clock',14)} Запрос отправлен` : `${icon('userPlus',14)} Подписаться`}
             </button>
             <button class="video-sound-btn" type="button" aria-label="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}" title="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}">${icon(feedSoundEnabled ? 'volume' : 'volumeOff',21)}</button>
-           <div class="side-actions">
+            <div class="side-actions">
               <div class="side-action author-avatar" data-userid="${escapeHtml(v.author.id)}">
                 <div class="avatar-wrap">
                   <img src="${authorAvatar}" alt="" loading="lazy" decoding="async" />
@@ -457,7 +480,7 @@
               <div class="hashtags">${escapeHtml(v.hashtags || '')}</div>
               <div class="music">${icon('music',14)} ${escapeHtml(v.music || 'Оригинальный звук')}</div>
             </div>
-            <div class="video-progress"><div class="bar"></div></div>
+            <div class="video-progress"><div class="bar"></div></div>`}
           </div>`;
         container.appendChild(card);
       });
@@ -580,6 +603,7 @@
               activeFeedCard = null;
             } else {
               loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
+              preloadNearbyFeedVideos(card);
               if (userSettings.autoplay) {
                 playFeedVideo(card);
                 card.querySelector('.video-pause-indicator')?.classList.remove('visible');
@@ -820,7 +844,7 @@
     }
 
 
-    const VIDEO_SELECT_FIELDS = 'id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username';
+    const VIDEO_SELECT_FIELDS = 'id,user_id,description,hashtags,tags,media_type,likes,views,comments_count,shares,likes_count,views_count,shares_count,created_at,sound,sound_name,title,status,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username,moderation_blocked,moderation_reason';
 
     async function ensureVideoLoaded(id) {
       const cleanId = String(id || '').trim();
@@ -885,16 +909,37 @@
         const encoded = encodeURIComponent(String(video.id));
         history.replaceState(history.state, document.title, `${window.location.pathname}${window.location.search}#video=${encoded}`);
       }
-      showScreen('feed', { push: false });
-      renderFeed({ reshuffle: false });
+      showScreen('feed', { push: false, suppressFeedAutoplay: true });
 
-      requestAnimationFrame(() => {
-        const card = document.querySelector(`.video-card[data-id="${CSS.escape(String(video.id))}"]`);
-        if (!card) return;
-        if (scroll) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const media = card.querySelector('video');
-        if (media) media.play().catch(() => {});
-      });
+      const selector = `.video-card[data-id="${CSS.escape(String(video.id))}"]`;
+      let card = document.querySelector(selector);
+
+      // При открытии ссылки после обычной загрузки ленты карточка уже существует.
+      // Не перерисовываем всю ленту второй раз — это и создавало заметную задержку.
+      if (!card) {
+        renderFeed({ reshuffle: false });
+        card = document.querySelector(selector);
+      }
+      if (!card) return false;
+
+      const container = document.getElementById('feedContainer');
+      if (scroll && container) {
+        // Без smooth/center: ролик должен оказаться на экране сразу, без прокрутки
+        // через предыдущие карточки. Позиция рассчитывается относительно самой ленты.
+        const top = Math.max(0, card.offsetTop);
+        container.scrollTo({ top, left: 0, behavior: 'auto' });
+        container.scrollTop = top;
+      }
+
+      const media = card.querySelector('video');
+      if (media) {
+        // Для ссылки конкретный ролик всегда получает максимальный приоритет.
+        loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
+        preloadNearbyFeedVideos(card);
+        media.muted = true;
+        media.volume = 0;
+        if (userSettings.autoplay || updateHash) media.play().catch(() => {});
+      }
       return true;
     }
 
