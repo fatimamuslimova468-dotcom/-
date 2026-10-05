@@ -1641,7 +1641,7 @@
         // refreshAuthState() loads the authenticated data when needed. For guests
         // load the public feed here. Avoid a second request for signed-in users.
         if (!authUser) await loadRemoteData();
-        await handleVideoHash();
+        await handleVideoDeepLink();
       } catch (e) {
         console.error('Init error:', e);
         videos = [];
@@ -1664,7 +1664,7 @@
         try {
           await refreshAuthState();
           await loadRemoteData();
-          await handleVideoHash();
+          await handleVideoDeepLink();
         } catch (e) { console.warn('auth state reload', e); }
       }, 0);
     });

@@ -1,6 +1,24 @@
     // ========== NAVIGATION ==========
     let currentScreenName = 'feed';
     let navigationReady = false;
+    let pendingDeepLinkId = null;
+    let deepLinkConsumed = false;
+
+    function getSharedVideoId() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const queryId = params.get('video');
+        if (queryId) return String(queryId).trim();
+      } catch (_) {}
+      const raw = String(window.location.hash || '');
+      const match = raw.match(/^#video=([^&]+)/i);
+      if (!match) return '';
+      try { return decodeURIComponent(match[1]).trim(); } catch (_) { return ''; }
+    }
+
+    function shouldSuppressFeedAutoplay() {
+      return Boolean(pendingDeepLinkId || (getSharedVideoId() && !deepLinkConsumed));
+    }
 
     function syncVirtualBack(name) {
       const btn = document.getElementById('virtualBack');
@@ -87,7 +105,11 @@
       }, true);
     }
 
-    window.addEventListener('hashchange', () => { setTimeout(() => handleVideoHash().catch(() => {}), 0); });
+    window.addEventListener('hashchange', () => {
+      pendingDeepLinkId = getSharedVideoId() || null;
+      deepLinkConsumed = false;
+      setTimeout(() => handleVideoDeepLink().catch(() => {}), 0);
+    });
 
     function setupBottomNav() {
       document.querySelectorAll('.bottom-nav .btn').forEach(btn => {
@@ -347,10 +369,10 @@
       video.volume = 0;
     }
 
-    function playFeedVideo(card, {manual = false} = {}) {
+    async function playFeedVideo(card, {manual = false} = {}) {
       const video = card?.querySelector('video');
-      if (!video || currentScreenName !== 'feed') return;
-      if (!manual && video.dataset.manualPaused === '1') return;
+      if (!video || currentScreenName !== 'feed') return false;
+      if (!manual && video.dataset.manualPaused === '1') return false;
       if (manual) video.dataset.manualPaused = '0';
 
       // Останавливаем любое другое видео до запуска нового.
@@ -360,14 +382,33 @@
       });
 
       activeFeedCard = card;
-      setVideoSound(video, feedSoundEnabled);
-      const playPromise = video.play();
-      if (playPromise?.catch) {
-        playPromise.catch(() => {
-          if (activeFeedCard === card) activeFeedCard = null;
+
+      // Важный момент для мобильных браузеров: перелистывание вызывает
+      // IntersectionObserver уже ПОСЛЕ touch-события, поэтому play() со звуком
+      // может быть воспринят как autoplay и отклонён. Сначала гарантированно
+      // запускаем ролик в muted-режиме, а после успешного старта возвращаем
+      // пользовательский sound state. Так звук не сбрасывается при свайпе.
+      video.muted = true;
+      video.defaultMuted = true;
+      video.volume = 0;
+
+      try {
+        await video.play();
+        if (activeFeedCard !== card || video.paused) return true;
+
+        // Восстанавливаем звук только после успешного запуска.
+        setVideoSound(video, feedSoundEnabled);
+        updateSoundButton(video, feedSoundEnabled);
+        return true;
+      } catch (_) {
+        // Не считаем отказ autoplay причиной отключить звук пользователя:
+        // состояние остаётся в feedSoundEnabled и будет восстановлено при
+        // следующем разрешённом запуске/жесте.
+        if (activeFeedCard === card) {
           video.muted = true;
           video.volume = 0;
-        });
+        }
+        return false;
       }
     }
 
@@ -553,7 +594,9 @@
           }
         });
         video.addEventListener('playing', () => {
-          video.closest('.video-card')?.classList.add('video-started');
+          const card = video.closest('.video-card');
+          card?.classList.add('video-started');
+          if (card && activeFeedCard === card) setVideoSound(video, feedSoundEnabled);
           syncFeedAudio();
         });
         video.addEventListener('error', () => {
@@ -604,7 +647,7 @@
             } else {
               loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
               preloadNearbyFeedVideos(card);
-              if (userSettings.autoplay) {
+              if (userSettings.autoplay && !shouldSuppressFeedAutoplay()) {
                 playFeedVideo(card);
                 card.querySelector('.video-pause-indicator')?.classList.remove('visible');
               }
@@ -833,7 +876,10 @@
     }
 
     function getVideoShareUrl(id) {
-      return `${window.location.origin}${window.location.pathname}#video=${encodeURIComponent(id)}`;
+      const url = new URL(window.location.href);
+      url.searchParams.set('video', String(id));
+      url.hash = '';
+      return url.href;
     }
 
     function getVideoShareText(v, url) {
@@ -851,7 +897,6 @@
       if (!cleanId) return null;
       const local = videos.find(v => String(v.id) === cleanId);
       if (local) return local;
-      if (!remoteLoaded) return null;
 
       try {
         const { data, error } = await db.from('videos')
@@ -896,7 +941,7 @@
     }
 
     async function openVideoById(id, options = {}) {
-      const { updateHash = false, scroll = true } = options;
+      const { updateHash = false, scroll = true, forceAutoplay = false } = options;
       const video = await ensureVideoLoaded(id);
       if (!video) {
         showToast('Это видео недоступно или больше не существует.');
@@ -906,9 +951,13 @@
       currentFeedTab = 'foryou';
       updateTopTabs();
       if (updateHash) {
-        const encoded = encodeURIComponent(String(video.id));
-        history.replaceState(history.state, document.title, `${window.location.pathname}${window.location.search}#video=${encoded}`);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('video', String(video.id));
+        nextUrl.hash = '';
+        history.replaceState(history.state, document.title, nextUrl.href);
       }
+      deepLinkConsumed = true;
+      pendingDeepLinkId = null;
       showScreen('feed', { push: false, suppressFeedAutoplay: true });
 
       const selector = `.video-card[data-id="${CSS.escape(String(video.id))}"]`;
@@ -936,19 +985,26 @@
         // Для ссылки конкретный ролик всегда получает максимальный приоритет.
         loadFeedVideo(card, userSettings.data_saver ? 'metadata' : 'auto');
         preloadNearbyFeedVideos(card);
-        media.muted = true;
-        media.volume = 0;
-        if (userSettings.autoplay || updateHash) media.play().catch(() => {});
+        if (forceAutoplay || userSettings.autoplay || updateHash) await playFeedVideo(card);
       }
       return true;
     }
 
+    async function handleVideoDeepLink() {
+      const id = getSharedVideoId();
+      if (!id) return;
+      pendingDeepLinkId = String(id);
+      deepLinkConsumed = false;
+      const opened = await openVideoById(id, { updateHash: false, scroll: true, forceAutoplay: true });
+      if (!opened) {
+        pendingDeepLinkId = null;
+        deepLinkConsumed = true;
+      }
+    }
+
+    // Backward compatibility for older #video=... links.
     async function handleVideoHash() {
-      const raw = String(window.location.hash || '');
-      const match = raw.match(/^#video=([^&]+)/i);
-      if (!match) return;
-      const id = decodeURIComponent(match[1]);
-      await openVideoById(id, { updateHash: false, scroll: true });
+      return handleVideoDeepLink();
     }
 
     async function registerVideoShare(id) {
