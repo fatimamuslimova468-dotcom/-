@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Смотрю — AI interface</title>
+  <meta name="robots" content="index,follow">
+  <meta name="description" content="Машинно-читаемый интерфейс сайта Смотрю для AI-агентов: видео, профили и доступные действия.">
+  <link rel="manifest" href="/ai-manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:24px;line-height:1.5}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f5f5f5;padding:16px;border-radius:12px}
+    .video{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0}
+    video{max-width:360px;width:100%;max-height:600px;background:#000;border-radius:10px}
+  </style>
+</head>
+<body data-ai-page="site-context">
+  <main>
+    <h1 data-ai="site-name">Смотрю</h1>
+    <p data-ai="site-description">Социальная видеоплатформа.</p>
+    <section data-ai="capabilities">
+      <h2>Возможности</h2>
+      <ul>
+        <li data-ai-action="navigate-feed">Лента видео</li>
+        <li data-ai-action="navigate-search">Поиск</li>
+        <li data-ai-action="navigate-create">Создание и публикация видео</li>
+        <li data-ai-action="navigate-inbox">Чаты и уведомления</li>
+        <li data-ai-action="navigate-profile">Профили, подписки, лайки и избранное</li>
+        <li data-ai-action="video-like">Лайк видео</li>
+        <li data-ai-action="video-comment">Комментарии</li>
+        <li data-ai-action="video-share">Поделиться</li>
+        <li data-ai-action="video-save">Сохранить в избранное</li>
+        <li data-ai-action="video-follow">Подписаться на автора</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Опубликованные видео</h2>
+      <div id="videos" data-ai="video-list" aria-live="polite">Загрузка…</div>
+    </section>
+  </main>
+<script>
+(function(){
+  const SUPABASE_URL='https://xzaryhtrzdjrrqgrowkv.supabase.co';
+  const SUPABASE_KEY='sb_publishable_EwldCPF1drff-q6Ei5zYcQ__is80B0T';
+  const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const bucket='smotry-videos';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const media=row=>{
+    const raw=String(row.media_url||row.video_url||row.image_url||'').trim();
+    if(/^https?:\/\//i.test(raw)) return raw;
+    return raw ? SUPABASE_URL+'/storage/v1/object/public/'+bucket+'/'+raw.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/') : '';
+  };
+  const params=new URLSearchParams(location.hash.replace(/^#/,'?'));
+  const requested=params.get('video');
+  async function load(){
+    const box=document.getElementById('videos');
+    let q=db.from('videos').select('id,user_id,description,hashtags,tags,media_type,likes_count,views_count,comments_count,shares_count,created_at,sound,sound_name,title,visibility,is_published,duration_seconds,duration,video_url,image_url,media_url,thumbnail_url,username,moderation_blocked,moderation_reason').eq('is_published',true).order('created_at',{ascending:false}).limit(100);
+    if(requested) q=q.eq('id',requested);
+    const {data,error}=await q;
+    if(error){box.textContent='Не удалось получить список видео: '+error.message; return;}
+    const rows=(data||[]).filter(v=>!v.moderation_blocked && v.visibility!=='private');
+    box.innerHTML=rows.length?rows.map(v=>{
+      const src=media(v), id=esc(v.id), title=esc(v.title||'Без названия'), desc=esc(v.description||''), author=esc(v.username||'Пользователь');
+      const isImage=v.media_type==='image';
+      return `<article class="video" data-ai="video" data-video-id="${id}" data-video-title="${title}" data-video-author="${author}" data-video-description="${desc}" data-video-url="${esc(src)}">
+        <h3 data-ai="video-title">${title}</h3>
+        <p data-ai="video-author">Автор: ${author}</p>
+        <p data-ai="video-description">${desc}</p>
+        <p>Просмотры: ${Number(v.views_count||0)} · Лайки: ${Number(v.likes_count||0)} · Комментарии: ${Number(v.comments_count||0)}</p>
+        ${src?(isImage?`<img src="${esc(src)}" alt="${title}" loading="lazy">`:`<video controls playsinline preload="metadata" src="${esc(src)}"${v.thumbnail_url?` poster="${esc(v.thumbnail_url)}"`:''}></video>`):'<p>Медиафайл недоступен.</p>'}
+        <p><a data-ai-action="open-video" href="/index.html#video=${id}">Открыть видео на сайте</a></p>
+      </article>`;
+    }).join(''):'<p>Опубликованных видео не найдено.</p>';
+  }
+  load();
+})();
+</script>
+</body>
+</html>

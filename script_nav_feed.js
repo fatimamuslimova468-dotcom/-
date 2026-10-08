@@ -463,6 +463,12 @@
       list.forEach((v, index) => {
         const card = document.createElement('div');
         card.className = 'video-card';
+        card.setAttribute('data-ai', 'video');
+        card.setAttribute('data-video-id', String(v.id));
+        card.setAttribute('data-video-title', String(v.title || 'Без названия'));
+        card.setAttribute('data-video-author', String(v.author?.username || 'Пользователь'));
+        card.setAttribute('data-video-description', String(v.desc || ''));
+        card.setAttribute('data-video-url', String(v.src || ''));
         card.style.animationDelay = `${Math.min(index * 18, 120)}ms`;
         card.dataset.id = v.id;
         const source = escapeHtml(v.src);
@@ -487,10 +493,10 @@
           <div class="video-pause-indicator" aria-hidden="true"><div class="pause-badge">${icon('pause',26)}</div></div>
           <div class="video-overlay ${isModerationBlocked ? 'video-overlay-blocked' : ''}">
             ${isModerationBlocked ? '' : `
-            <button class="subscribe-btn ${v.subscribed ? 'subscribed' : ''}" data-id="${escapeHtml(v.id)}" ${v.isMine ? 'disabled' : ''}>
+            <button class="subscribe-btn ${v.subscribed ? 'subscribed' : ''}" data-ai-action="follow-author" data-id="${escapeHtml(v.id)}" ${v.isMine ? 'disabled' : ''}>
               ${v.subscribed ? `${icon('check',14)} Подписан` : v.followRequested ? `${icon('clock',14)} Запрос отправлен` : `${icon('userPlus',14)} Подписаться`}
             </button>
-            <button class="video-sound-btn" type="button" aria-label="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}" title="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}">${icon(feedSoundEnabled ? 'volume' : 'volumeOff',21)}</button>
+            <button class="video-sound-btn" data-ai-action="toggle-sound" type="button" aria-label="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}" title="${feedSoundEnabled ? 'Выключить звук' : 'Включить звук'}">${icon(feedSoundEnabled ? 'volume' : 'volumeOff',21)}</button>
             <div class="side-actions">
               <div class="side-action author-avatar" data-userid="${escapeHtml(v.author.id)}">
                 <div class="avatar-wrap">
@@ -498,12 +504,12 @@
                   ${!v.subscribed && !v.isMine ? `<div class="avatar-follow">${icon('plus',12)}</div>` : ''}
                 </div>
               </div>
-              <div class="side-action like-btn" data-id="${escapeHtml(v.id)}">
+              <div class="side-action like-btn" data-ai-action="like-video" data-id="${escapeHtml(v.id)}">
                 <div class="icon-btn ${v.liked ? 'liked' : ''}">${likeIcon}</div>
                 <div class="count">${likeCountText}</div>
               </div>
               ${commentActionMarkup}
-              <div class="side-action share-btn" data-id="${escapeHtml(v.id)}">
+              <div class="side-action share-btn" data-ai-action="share-video" data-id="${escapeHtml(v.id)}">
                 <div class="icon-btn">${icon('share',24)}</div>
                 <div class="count">${formatCount(v.shares)}</div>
               </div>
@@ -511,7 +517,7 @@
                 <div class="icon-btn">${icon('donate',23)}</div>
                 <div class="count">Донат</div>
               </div>` : ''}
-              <div class="side-action more-btn" data-id="${escapeHtml(v.id)}">
+              <div class="side-action more-btn" data-ai-action="video-menu" data-id="${escapeHtml(v.id)}">
                 <div class="icon-btn${(!v.isMine && v.favorited) ? saveBadge : ''}">${v.isMine ? icon('more',24) : (v.favorited ? icon('bookmarkFill',23) : icon('more',24))}</div>
               </div>
             </div>

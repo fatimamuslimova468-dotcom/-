@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "name": "Смотрю",
+  "description": "AI-readable capability manifest for the Смотрю video social platform.",
+  "language": "ru",
+  "ai_entrypoint": "/ai.html",
+  "capabilities": [
+    {"id":"view_feed","method":"GET","path":"/ai.html","description":"Получить доступные опубликованные видео и их метаданные."},
+    {"id":"view_video","method":"GET","path":"/ai.html#video=<id>","description":"Открыть конкретное видео по ID."},
+    {"id":"navigate","method":"UI","description":"Перейти в ленту, поиск, создание публикации, входящие или профиль."},
+    {"id":"like_video","method":"UI","description":"Поставить или убрать лайк у видео при наличии авторизации."},
+    {"id":"comment_video","method":"UI","description":"Открыть комментарии и отправить комментарий при наличии авторизации и разрешения автора."},
+    {"id":"follow_author","method":"UI","description":"Подписаться на автора при наличии авторизации."},
+    {"id":"share_video","method":"UI","description":"Открыть варианты отправки или копирования ссылки на видео."},
+    {"id":"save_video","method":"UI","description":"Сохранить видео в избранное при наличии авторизации."},
+    {"id":"open_profile","method":"UI","description":"Открыть профиль автора и его видео."}
+  ],
+  "authentication": {
+    "required_for": ["like_video","comment_video","follow_author","save_video"],
+    "public_read_access": true
+  },
+  "notes": [
+    "Видео и профили загружаются из Supabase.",
+    "Модерационно заблокированные публикации не должны воспроизводиться или выдаваться как доступные для просмотра.",
+    "AI-агент должен использовать видимые UI-действия и не обходить ограничения авторизации или приватности."
+  ]
+}
